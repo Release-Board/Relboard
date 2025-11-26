@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: relboard-crawler
+
+  config:
+    import:
+      - classpath:application-db.yml
+
+  profiles:
+    active: ${PROFILE}
