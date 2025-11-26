@@ -1,0 +1,6 @@
+crawler:
+  schedule:
+    cron: ${CRAWLER_SCHEDULE_CRON:0 */10 * * * *}
+
+github:
+  token: ${GITHUB_TOKEN:}
