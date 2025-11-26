@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:relboard;DB_CLOSE_DELAY=-1;MODE=MySQL
+    username: sa
+    password: 
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+  flyway:
+    enabled: false
