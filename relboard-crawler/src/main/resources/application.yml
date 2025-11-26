@@ -5,6 +5,7 @@ spring:
   config:
     import:
       - classpath:application-db.yml
+      - classpath:application-crawler.yml
 
   profiles:
-    active: ${PROFILE}
+    active: ${PROFILE:local}
