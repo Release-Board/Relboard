@@ -14,5 +14,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true
-    baseline-version: 0
+    baseline-on-migrate: true       # 기존 DB에 이미 테이블이 있더라도 시작 가능
+    validate-on-migrate: true       # 변경된 스키마 검증
+    clean-disabled: true            # 운영에서 drop 방지
+    out-of-order: false             # 버전 순서 보장
+    encoding: UTF-8
