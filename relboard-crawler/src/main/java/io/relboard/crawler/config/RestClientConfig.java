@@ -13,6 +13,11 @@ public class RestClientConfig {
     private String githubToken;
 
     @Bean
+    public RestClient.Builder restClientBuilder() {
+        return RestClient.builder();
+    }
+
+    @Bean
     public RestClient githubRestClient(RestClient.Builder builder) {
         var spec = builder
                 .baseUrl("https://api.github.com")
