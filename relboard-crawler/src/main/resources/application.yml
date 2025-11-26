@@ -9,3 +9,7 @@ spring:
 
   profiles:
     active: ${PROFILE:local}
+
+logging:
+  level:
+    org.flywaydb: INFO
