@@ -8,6 +8,9 @@ spring:
       ddl-auto: ${DATABASE_DDL_AUTO}
     generate-ddl: false
     open-in-view: false
+    properties:
+      hibernate:
+        dialect: ${HIBERNATE_DIALECT:org.hibernate.dialect.MySQLDialect}
   flyway:
     enabled: true
     locations: classpath:db/migration
