@@ -19,6 +19,7 @@ import io.relboard.crawler.repository.TechStackRepository;
 import io.relboard.crawler.repository.TechStackSourceRepository;
 import io.relboard.crawler.service.implementation.CrawlingServiceImpl;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,7 +67,9 @@ class CrawlingServiceImplTest {
             .build();
 
     when(techStackSourceRepository.findById(10L)).thenReturn(Optional.of(source));
-    when(mavenClient.fetchLatestVersion("org.example", "app")).thenReturn(Optional.of("1.0.0"));
+    when(mavenClient.fetchVersions("org.example", "app")).thenReturn(Optional.of(List.of("1.0.0")));
+    when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.0.0"))
+        .thenReturn(true);
 
     crawlingService.process(10L);
 
@@ -91,7 +94,12 @@ class CrawlingServiceImplTest {
             .build();
 
     when(techStackSourceRepository.findById(20L)).thenReturn(Optional.of(source));
-    when(mavenClient.fetchLatestVersion("org.example", "app")).thenReturn(Optional.of("1.1.0"));
+    when(mavenClient.fetchVersions("org.example", "app"))
+        .thenReturn(Optional.of(List.of("1.0.0", "1.1.0")));
+    when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.0.0"))
+        .thenReturn(true);
+    when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.1.0"))
+        .thenReturn(false);
 
     GithubClient.ReleaseDetails releaseDetails =
         new GithubClient.ReleaseDetails("Release 1.1.0", "breaking fix docs", Instant.now());

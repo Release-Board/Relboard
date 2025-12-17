@@ -13,6 +13,7 @@ import io.relboard.crawler.repository.ReleaseTagRepository;
 import io.relboard.crawler.repository.TechStackRepository;
 import io.relboard.crawler.repository.TechStackSourceRepository;
 import io.relboard.crawler.service.abstraction.CrawlingService;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -52,50 +53,56 @@ public class CrawlingServiceImpl implements CrawlingService {
         return;
       }
 
-      Optional<String> latestVersionOpt =
-          mavenClient.fetchLatestVersion(source.getMavenGroupId(), source.getMavenArtifactId());
-      if (latestVersionOpt.isEmpty()) {
-        log.warn("최신 버전을 찾을 수 없어 크롤링 건너뜀 sourceId={}", sourceId);
+      Optional<List<String>> versionsOpt =
+          mavenClient.fetchVersions(source.getMavenGroupId(), source.getMavenArtifactId());
+      if (versionsOpt.isEmpty()) {
+        log.warn("버전 목록을 찾을 수 없어 크롤링 건너뜀 sourceId={}", sourceId);
         return;
       }
 
-      String latestVersion = latestVersionOpt.get();
+      List<String> versions = versionsOpt.get();
       TechStack techStack = source.getTechStack();
-      if (latestVersion.equals(techStack.getLatestVersion())) {
-        log.info("신규 버전 없음 sourceId={} latestVersion={}", sourceId, latestVersion);
-        return;
+      String lastProcessedVersion = null;
+
+      for (String version : versions) {
+        if (releaseRecordRepository.existsByTechStackAndVersion(techStack, version)) {
+          continue;
+        }
+
+        Optional<GithubClient.ReleaseDetails> releaseDetailsOpt =
+            githubClient.fetchReleaseDetails(
+                source.getGithubOwner(), source.getGithubRepo(), version);
+        if (releaseDetailsOpt.isEmpty()) {
+          log.warn("릴리즈 노트를 찾을 수 없어 건너뜀 sourceId={} version={} ", sourceId, version);
+          continue;
+        }
+
+        GithubClient.ReleaseDetails releaseDetails = releaseDetailsOpt.get();
+        ReleaseRecord record =
+            releaseRecordRepository.save(
+                ReleaseRecord.builder()
+                    .techStack(techStack)
+                    .version(version)
+                    .title(releaseDetails.title() != null ? releaseDetails.title() : version)
+                    .content(releaseDetails.content())
+                    .publishedAt(releaseDetails.publishedAt())
+                    .build());
+
+        Set<ReleaseTagType> tags = releaseParser.extractTags(releaseDetails.content());
+        tags.forEach(
+            tag ->
+                releaseTagRepository.save(
+                    ReleaseTag.builder().releaseRecord(record).tagType(tag).build()));
+
+        lastProcessedVersion = version;
       }
 
-      Optional<GithubClient.ReleaseDetails> releaseDetailsOpt =
-          githubClient.fetchReleaseDetails(
-              source.getGithubOwner(), source.getGithubRepo(), latestVersion);
-      if (releaseDetailsOpt.isEmpty()) {
-        log.warn("릴리즈 노트를 찾을 수 없어 크롤링 건너뜀 sourceId={} version={} ", sourceId, latestVersion);
-        return;
+      if (lastProcessedVersion != null) {
+        techStack.updateLatestVersion(lastProcessedVersion);
+        techStackRepository.save(techStack);
       }
 
-      GithubClient.ReleaseDetails releaseDetails = releaseDetailsOpt.get();
-      ReleaseRecord record =
-          releaseRecordRepository.save(
-              ReleaseRecord.builder()
-                  .techStack(techStack)
-                  .version(latestVersion)
-                  .title(
-                      releaseDetails.title() != null ? releaseDetails.title() : latestVersion)
-                  .content(releaseDetails.content())
-                  .publishedAt(releaseDetails.publishedAt())
-                  .build());
-
-      Set<ReleaseTagType> tags = releaseParser.extractTags(releaseDetails.content());
-      tags.forEach(
-          tag ->
-              releaseTagRepository.save(
-                  ReleaseTag.builder().releaseRecord(record).tagType(tag).build()));
-
-      techStack.updateLatestVersion(latestVersion);
-      techStackRepository.save(techStack);
-
-      log.info("크롤링 완료 sourceId={} version={}", sourceId, latestVersion);
+      log.info("크롤링 완료 sourceId={} processedUntil={}", sourceId, lastProcessedVersion);
     } catch (Exception ex) {
       log.error("크롤링 실패 sourceId={}", sourceId, ex);
     }

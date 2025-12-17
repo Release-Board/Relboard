@@ -1,6 +1,7 @@
 package io.relboard.crawler.client;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -20,43 +21,41 @@ public class MavenClient {
     this.mavenRestClient = mavenRestClient;
   }
 
-    // XML에서 <release>3.4.0</release> 추출용 정규식
-    // <release>가 없으면 <latest>를 찾도록 대비
-    private static final Pattern VERSION_PATTERN = Pattern.compile("<(?:release|latest)>(.*?)</(?:release|latest)>");
+  // XML에서 <version>...</version> 들을 모두 추출
+  private static final Pattern VERSION_PATTERN = Pattern.compile("<version>(.*?)</version>");
 
-    public Optional<String> fetchLatestVersion(String groupId, String artifactId) {
-        // Maven 경로 규칙: 점(.)을 슬래시(/)로 변환
-        // 예: org.springframework.boot -> org/springframework/boot
-        String groupPath = groupId.replace('.', '/');
+  public Optional<List<String>> fetchVersions(String groupId, String artifactId) {
+    String groupPath = groupId.replace('.', '/');
 
-        try {
-            URI uri = URI.create("https://repo1.maven.org/maven2/" + groupPath + "/" + artifactId + "/maven-metadata.xml");
-            if (log.isTraceEnabled()) {
-                log.trace("Maven metadata 요청 uri={}", uri);
-            }
+    try {
+      URI uri =
+          URI.create(
+              "https://repo1.maven.org/maven2/" + groupPath + "/" + artifactId + "/maven-metadata.xml");
+      if (log.isTraceEnabled()) {
+        log.trace("Maven metadata 요청 uri={}", uri);
+      }
 
-            String xmlContent = mavenRestClient
-                    .get()
-                    .uri(uri)
-                    .retrieve()
-                    .body(String.class);
+      String xmlContent = mavenRestClient.get().uri(uri).retrieve().body(String.class);
 
-            if (xmlContent == null || xmlContent.isBlank()) {
-                return Optional.empty();
-            }
+      if (xmlContent == null || xmlContent.isBlank()) {
+        return Optional.empty();
+      }
 
-            // 정규식으로 버전 추출 (가볍고 빠름)
-            Matcher matcher = VERSION_PATTERN.matcher(xmlContent);
-            if (matcher.find()) {
-                return Optional.of(matcher.group(1));
-            }
+      Matcher matcher = VERSION_PATTERN.matcher(xmlContent);
+      List<String> versions = new ArrayList<>();
+      while (matcher.find()) {
+        versions.add(matcher.group(1));
+      }
 
-            return Optional.empty();
+      return versions.isEmpty() ? Optional.empty() : Optional.of(versions);
 
-        } catch (Exception ex) {
-            // 404 Not Found 등은 경고 로그만 남기고 빈 값 반환
-            log.warn("Maven Metadata 조회 실패 (패키지명 확인 필요): {}/{}", groupId, artifactId);
-            return Optional.empty();
-        }
+    } catch (Exception ex) {
+      log.warn("Maven Metadata 조회 실패 (패키지명 확인 필요): {}/{}", groupId, artifactId);
+      return Optional.empty();
     }
+  }
+
+  public Optional<String> fetchLatestVersion(String groupId, String artifactId) {
+    return fetchVersions(groupId, artifactId).flatMap(list -> list.isEmpty() ? Optional.empty() : Optional.of(list.get(list.size() - 1)));
+  }
 }
