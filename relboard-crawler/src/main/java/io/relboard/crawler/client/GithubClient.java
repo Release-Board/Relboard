@@ -6,15 +6,19 @@ import java.time.Instant;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class GithubClient {
 
     private final RestClient githubRestClient;
+
+    public GithubClient(@Qualifier("githubRestClient") final RestClient githubRestClient){
+        this.githubRestClient = githubRestClient;
+    }
 
     public Optional<ReleaseNote> fetchReleaseNote(String owner, String repo, String version) {
         try {

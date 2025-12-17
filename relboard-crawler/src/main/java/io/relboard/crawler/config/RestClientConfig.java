@@ -17,7 +17,7 @@ public class RestClientConfig {
         return RestClient.builder();
     }
 
-    @Bean
+    @Bean("githubRestClient")
     public RestClient githubRestClient(RestClient.Builder builder) {
         RestClient.Builder spec = builder
                 .baseUrl("https://api.github.com")
@@ -30,7 +30,7 @@ public class RestClientConfig {
         return spec.build();
     }
 
-    @Bean
+    @Bean("mavenRestClient")
     public RestClient mavenRestClient(RestClient.Builder builder) {
         return builder
                 .baseUrl("https://search.maven.org")

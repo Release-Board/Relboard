@@ -4,15 +4,19 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class MavenClient {
 
     private final RestClient mavenRestClient;
+
+    public MavenClient(@Qualifier("mavenRestClient") final RestClient mavenRestClient){
+        this.mavenRestClient = mavenRestClient;
+    }
 
     public Optional<String> fetchLatestVersion(String groupId, String artifactId) {
         try {
