@@ -35,8 +35,8 @@ public class ReleaseRecord extends BaseEntity {
   @Column(nullable = false)
   private String title;
 
-  @Column(columnDefinition = "TEXT")
-  private String content;
+    @Column(columnDefinition = "LONGTEXT")
+    private String content;
 
   @Column(name = "published_at")
   private Instant publishedAt;
