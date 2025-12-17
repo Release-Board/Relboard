@@ -20,8 +20,8 @@ public class AsyncConfig {
   public Executor crawlerExecutor() {
     ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
     executor.setThreadNamePrefix("crawler-");
-    executor.setCorePoolSize(4);
-    executor.setMaxPoolSize(8);
+    executor.setCorePoolSize(1);
+    executor.setMaxPoolSize(1);
     executor.setQueueCapacity(100);
     executor.setAllowCoreThreadTimeOut(true);
     executor.initialize();
