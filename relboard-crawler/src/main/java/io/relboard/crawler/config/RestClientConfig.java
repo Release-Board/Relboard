@@ -1,10 +1,12 @@
 package io.relboard.crawler.config;
 
+import java.net.http.HttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 
 @Configuration
 public class RestClientConfig {
@@ -36,11 +38,16 @@ public class RestClientConfig {
   }
 
   @Bean("mavenRestClient")
-  public RestClient mavenRestClient(RestClient.Builder builder) {
-    return builder
-        .baseUrl("https://search.maven.org")
-        .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)
-        .defaultHeader("User-Agent", USER_AGENT)
-        .build();
-  }
+    public RestClient mavenRestClient(RestClient.Builder builder) {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .build();
+
+        return builder
+                .baseUrl("https://search.maven.org")
+                .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)
+                .defaultHeader("User-Agent", USER_AGENT)
+                .requestFactory(new JdkClientHttpRequestFactory(httpClient))
+                .build();
+    }
 }
