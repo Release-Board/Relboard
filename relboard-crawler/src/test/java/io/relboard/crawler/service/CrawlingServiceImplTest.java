@@ -59,13 +59,13 @@ class CrawlingServiceImplTest {
 
     @Test
     void process_skipsWhenNoNewVersion() {
-        var techStack = TechStack.builder()
+        TechStack techStack = TechStack.builder()
                 .id(1L)
                 .name("spring")
                 .latestVersion("1.0.0")
                 .build();
 
-        var source = TechStackSource.builder()
+        TechStackSource source = TechStackSource.builder()
                 .id(10L)
                 .techStack(techStack)
                 .type(TechStackSourceType.MAVEN)
@@ -87,13 +87,13 @@ class CrawlingServiceImplTest {
 
     @Test
     void process_savesReleaseAndTagsWhenNewVersion() {
-        var techStack = TechStack.builder()
+        TechStack techStack = TechStack.builder()
                 .id(1L)
                 .name("spring")
                 .latestVersion("1.0.0")
                 .build();
 
-        var source = TechStackSource.builder()
+        TechStackSource source = TechStackSource.builder()
                 .id(20L)
                 .techStack(techStack)
                 .type(TechStackSourceType.MAVEN)
@@ -106,10 +106,10 @@ class CrawlingServiceImplTest {
         when(techStackSourceRepository.findById(20L)).thenReturn(Optional.of(source));
         when(mavenClient.fetchLatestVersion("org.example", "app")).thenReturn(Optional.of("1.1.0"));
 
-        var releaseNote = new ReleaseNote("1.1.0", "Release 1.1.0", "breaking fix docs", Instant.now());
+        ReleaseNote releaseNote = new ReleaseNote("1.1.0", "Release 1.1.0", "breaking fix docs", Instant.now());
         when(githubClient.fetchReleaseNote("owner", "repo", "1.1.0")).thenReturn(Optional.of(releaseNote));
 
-        var savedRecord = ReleaseRecord.builder()
+        ReleaseRecord savedRecord = ReleaseRecord.builder()
                 .id(100L)
                 .techStack(techStack)
                 .version("1.1.0")

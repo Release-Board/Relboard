@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -17,7 +16,7 @@ public class MavenClient {
 
     public Optional<String> fetchLatestVersion(String groupId, String artifactId) {
         try {
-            var response = mavenRestClient
+            MavenSearchResponse response = mavenRestClient
                     .get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/solrsearch/select")

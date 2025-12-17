@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -19,7 +18,7 @@ public class GithubClient {
 
     public Optional<ReleaseNote> fetchReleaseNote(String owner, String repo, String version) {
         try {
-            var response = githubRestClient
+            GithubReleaseResponse response = githubRestClient
                     .get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/repos/{owner}/{repo}/releases/tags/{tag}")
@@ -32,7 +31,7 @@ public class GithubClient {
                 return Optional.empty();
             }
 
-            var publishedAt = response.publishedAt() != null ? Instant.parse(response.publishedAt()) : null;
+            Instant publishedAt = response.publishedAt() != null ? Instant.parse(response.publishedAt()) : null;
             return Optional.of(new ReleaseNote(version, response.name(), response.body(), publishedAt));
         } catch (Exception ex) {
             log.error("GitHub 릴리즈 노트 조회 실패 {}/{} tag {}", owner, repo, version, ex);

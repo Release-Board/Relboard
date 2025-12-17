@@ -20,7 +20,7 @@ public class ReleaseParser {
             return Set.of();
         }
 
-        var tags = EnumSet.noneOf(ReleaseTagType.class);
+        EnumSet<ReleaseTagType> tags = EnumSet.noneOf(ReleaseTagType.class);
         TAG_PATTERNS.forEach((type, pattern) -> {
             if (pattern.matcher(content).find()) {
                 tags.add(type);

@@ -19,7 +19,7 @@ public class RestClientConfig {
 
     @Bean
     public RestClient githubRestClient(RestClient.Builder builder) {
-        var spec = builder
+        RestClient.Builder spec = builder
                 .baseUrl("https://api.github.com")
                 .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE);
 

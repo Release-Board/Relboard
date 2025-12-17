@@ -1,7 +1,9 @@
 package io.relboard.crawler.scheduler;
 
+import io.relboard.crawler.domain.TechStackSource;
 import io.relboard.crawler.repository.TechStackSourceRepository;
 import io.relboard.crawler.service.abstraction.CrawlingService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,10 +19,10 @@ public class CrawlingScheduler {
 
     @Scheduled(cron = "${crawler.schedule.cron:0 */10 * * * *}")
     public void run() {
-        var sources = techStackSourceRepository.findAll();
+        List<TechStackSource> sources = techStackSourceRepository.findAll();
         log.info("크롤링 스케줄러 시작 size={}", sources.size());
 
-        for (var source : sources) {
+        for (TechStackSource source : sources) {
             try {
                 crawlingService.process(source.getId());
             } catch (Exception ex) {

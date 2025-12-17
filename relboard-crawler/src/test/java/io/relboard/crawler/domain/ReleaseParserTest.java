@@ -11,7 +11,7 @@ class ReleaseParserTest {
 
     @Test
     void extractTags_returnsMatchingTagsIgnoringCase() {
-        var content = "Breaking change: new FEAT added with bug fix and docs update";
+        String content = "Breaking change: new FEAT added with bug fix and docs update";
 
         Set<ReleaseTagType> tags = parser.extractTags(content);
 

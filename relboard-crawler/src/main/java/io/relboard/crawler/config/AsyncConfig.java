@@ -16,7 +16,7 @@ public class AsyncConfig {
 
     @Bean(name = "crawlerExecutor")
     public Executor crawlerExecutor() {
-        var executor = new ThreadPoolTaskExecutor();
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setThreadNamePrefix("crawler-");
         executor.setCorePoolSize(4);
         executor.setMaxPoolSize(8);
