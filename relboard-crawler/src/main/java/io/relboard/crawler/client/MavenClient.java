@@ -1,10 +1,12 @@
 package io.relboard.crawler.client;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -18,38 +20,43 @@ public class MavenClient {
     this.mavenRestClient = mavenRestClient;
   }
 
-  public Optional<String> fetchLatestVersion(String groupId, String artifactId) {
-    try {
-      MavenSearchResponse response =
-          mavenRestClient
-              .get()
-              .uri(
-                  uriBuilder ->
-                      uriBuilder
-                          .path("/solrsearch/select")
-                          .queryParam("q", "g:\"" + groupId + "\" AND a:\"" + artifactId + "\"")
-                          .queryParam("rows", 1)
-                          .queryParam("wt", "json")
-                          .build())
-              .retrieve()
-              .onStatus(
-                  HttpStatusCode::isError,
-                  (req, res) ->
-                      log.warn("Maven 조회 오류: status={} url={}", res.getStatusCode(), req.getURI()))
-              .body(MavenSearchResponse.class);
+    // XML에서 <release>3.4.0</release> 추출용 정규식
+    // <release>가 없으면 <latest>를 찾도록 대비
+    private static final Pattern VERSION_PATTERN = Pattern.compile("<(?:release|latest)>(.*?)</(?:release|latest)>");
 
-      return response != null && response.response != null
-          ? response.response.docs.stream().findFirst().map(doc -> doc.latestVersion)
-          : Optional.empty();
-    } catch (Exception ex) {
-      log.error("Maven Central 최신 버전 조회 실패 {}:{}", groupId, artifactId, ex);
-      return Optional.empty();
+    public Optional<String> fetchLatestVersion(String groupId, String artifactId) {
+        // Maven 경로 규칙: 점(.)을 슬래시(/)로 변환
+        // 예: org.springframework.boot -> org/springframework/boot
+        String groupPath = groupId.replace('.', '/');
+
+        try {
+            URI uri = URI.create("https://repo1.maven.org/maven2/" + groupPath + "/" + artifactId + "/maven-metadata.xml");
+            if (log.isTraceEnabled()) {
+                log.trace("Maven metadata 요청 uri={}", uri);
+            }
+
+            String xmlContent = mavenRestClient
+                    .get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(String.class);
+
+            if (xmlContent == null || xmlContent.isBlank()) {
+                return Optional.empty();
+            }
+
+            // 정규식으로 버전 추출 (가볍고 빠름)
+            Matcher matcher = VERSION_PATTERN.matcher(xmlContent);
+            if (matcher.find()) {
+                return Optional.of(matcher.group(1));
+            }
+
+            return Optional.empty();
+
+        } catch (Exception ex) {
+            // 404 Not Found 등은 경고 로그만 남기고 빈 값 반환
+            log.warn("Maven Metadata 조회 실패 (패키지명 확인 필요): {}/{}", groupId, artifactId);
+            return Optional.empty();
+        }
     }
-  }
-
-  private record MavenSearchResponse(MavenResponse response) {}
-
-  private record MavenResponse(List<MavenDoc> docs) {}
-
-  private record MavenDoc(String latestVersion) {}
 }

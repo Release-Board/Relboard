@@ -1,9 +1,10 @@
 package io.relboard.crawler.client;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.relboard.crawler.domain.ReleaseNote;
+import java.net.URI;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -19,16 +20,28 @@ public class GithubClient {
     this.githubRestClient = githubRestClient;
   }
 
-  public Optional<ReleaseNote> fetchReleaseNote(String owner, String repo, String version) {
+  public Optional<ReleaseDetails> fetchReleaseDetails(String owner, String repo, String version) {
+    return Stream.of(version, "v" + version)
+        .distinct()
+        .map(tag -> fetchReleaseByTag(owner, repo, tag))
+        .filter(Optional::isPresent)
+        .findFirst()
+        .flatMap(opt -> opt);
+  }
+
+  public record ReleaseDetails(String title, String content, Instant publishedAt) {}
+
+  private Optional<ReleaseDetails> fetchReleaseByTag(String owner, String repo, String tag) {
     try {
+      URI uri = URI.create("https://api.github.com/repos/" + owner + "/" + repo + "/releases/tags/" + tag);
+      if (log.isTraceEnabled()) {
+        log.trace("GitHub 릴리즈 요청 uri={} tag={}", uri, tag);
+      }
+
       GithubReleaseResponse response =
           githubRestClient
               .get()
-              .uri(
-                  uriBuilder ->
-                      uriBuilder
-                          .path("/repos/{owner}/{repo}/releases/tags/{tag}")
-                          .build(owner, repo, version))
+              .uri(uri)
               .retrieve()
               .onStatus(
                   status -> status.isError(),
@@ -43,9 +56,9 @@ public class GithubClient {
 
       Instant publishedAt =
           response.publishedAt() != null ? Instant.parse(response.publishedAt()) : null;
-      return Optional.of(new ReleaseNote(version, response.name(), response.body(), publishedAt));
+      return Optional.of(new ReleaseDetails(response.name(), response.body(), publishedAt));
     } catch (Exception ex) {
-      log.error("GitHub 릴리즈 노트 조회 실패 {}/{} tag {}", owner, repo, version, ex);
+      log.error("GitHub 릴리즈 노트 조회 실패 {}/{} tag {}", owner, repo, tag, ex);
       return Optional.empty();
     }
   }

@@ -2,7 +2,6 @@ package io.relboard.crawler.service.implementation;
 
 import io.relboard.crawler.client.GithubClient;
 import io.relboard.crawler.client.MavenClient;
-import io.relboard.crawler.domain.ReleaseNote;
 import io.relboard.crawler.domain.ReleaseParser;
 import io.relboard.crawler.domain.ReleaseRecord;
 import io.relboard.crawler.domain.ReleaseTag;
@@ -67,26 +66,27 @@ public class CrawlingServiceImpl implements CrawlingService {
         return;
       }
 
-      Optional<ReleaseNote> releaseNoteOpt =
-          githubClient.fetchReleaseNote(
+      Optional<GithubClient.ReleaseDetails> releaseDetailsOpt =
+          githubClient.fetchReleaseDetails(
               source.getGithubOwner(), source.getGithubRepo(), latestVersion);
-      if (releaseNoteOpt.isEmpty()) {
+      if (releaseDetailsOpt.isEmpty()) {
         log.warn("릴리즈 노트를 찾을 수 없어 크롤링 건너뜀 sourceId={} version={} ", sourceId, latestVersion);
         return;
       }
 
-      ReleaseNote releaseNote = releaseNoteOpt.get();
+      GithubClient.ReleaseDetails releaseDetails = releaseDetailsOpt.get();
       ReleaseRecord record =
           releaseRecordRepository.save(
               ReleaseRecord.builder()
                   .techStack(techStack)
                   .version(latestVersion)
-                  .title(releaseNote.title())
-                  .content(releaseNote.content())
-                  .publishedAt(releaseNote.publishedAt())
+                  .title(
+                      releaseDetails.title() != null ? releaseDetails.title() : latestVersion)
+                  .content(releaseDetails.content())
+                  .publishedAt(releaseDetails.publishedAt())
                   .build());
 
-      Set<ReleaseTagType> tags = releaseParser.extractTags(releaseNote.content());
+      Set<ReleaseTagType> tags = releaseParser.extractTags(releaseDetails.content());
       tags.forEach(
           tag ->
               releaseTagRepository.save(

@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 
 import io.relboard.crawler.client.GithubClient;
 import io.relboard.crawler.client.MavenClient;
-import io.relboard.crawler.domain.ReleaseNote;
 import io.relboard.crawler.domain.ReleaseRecord;
 import io.relboard.crawler.domain.TechStack;
 import io.relboard.crawler.domain.TechStackSource;
@@ -94,10 +93,10 @@ class CrawlingServiceImplTest {
     when(techStackSourceRepository.findById(20L)).thenReturn(Optional.of(source));
     when(mavenClient.fetchLatestVersion("org.example", "app")).thenReturn(Optional.of("1.1.0"));
 
-    ReleaseNote releaseNote =
-        new ReleaseNote("1.1.0", "Release 1.1.0", "breaking fix docs", Instant.now());
-    when(githubClient.fetchReleaseNote("owner", "repo", "1.1.0"))
-        .thenReturn(Optional.of(releaseNote));
+    GithubClient.ReleaseDetails releaseDetails =
+        new GithubClient.ReleaseDetails("Release 1.1.0", "breaking fix docs", Instant.now());
+    when(githubClient.fetchReleaseDetails("owner", "repo", "1.1.0"))
+        .thenReturn(Optional.of(releaseDetails));
 
     ReleaseRecord savedRecord =
         ReleaseRecord.builder()
@@ -105,8 +104,8 @@ class CrawlingServiceImplTest {
             .techStack(techStack)
             .version("1.1.0")
             .title("Release 1.1.0")
-            .content(releaseNote.content())
-            .publishedAt(releaseNote.publishedAt())
+            .content(releaseDetails.content())
+            .publishedAt(releaseDetails.publishedAt())
             .build();
     when(releaseRecordRepository.save(any())).thenReturn(savedRecord);
 
