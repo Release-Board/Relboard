@@ -5,6 +5,7 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -29,7 +30,7 @@ public class MavenClient {
                             .queryParam("wt", "json")
                             .build())
                     .retrieve()
-                    .onStatus(status -> status.isError(), (req, res) -> log.warn("Maven 조회 오류: status={} url={}", res.getStatusCode(), req.getURI()))
+                    .onStatus(HttpStatusCode::isError, (req, res) -> log.warn("Maven 조회 오류: status={} url={}", res.getStatusCode(), req.getURI()))
                     .body(MavenSearchResponse.class);
 
             return response != null && response.response != null
