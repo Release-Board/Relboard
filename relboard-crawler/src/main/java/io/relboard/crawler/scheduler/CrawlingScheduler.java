@@ -18,7 +18,7 @@ public class CrawlingScheduler {
     @Scheduled(cron = "${crawler.schedule.cron:0 */10 * * * *}")
     public void run() {
         var sources = techStackSourceRepository.findAll();
-        log.info("정기 크롤링 시작 targets={}", sources.size());
+        log.info("정기 크롤링 시작 size={}", sources.size());
 
         for (var source : sources) {
             try {
