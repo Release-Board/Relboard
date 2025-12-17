@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.TaskScheduler;
 
 @Slf4j
 @EnableAsync
@@ -30,5 +32,14 @@ public class AsyncConfig {
     public AsyncUncaughtExceptionHandler asyncExceptionHandler() {
         // Let Spring log uncaught async exceptions; service-level try-catch is still required per guide.
         return new SimpleAsyncUncaughtExceptionHandler();
+    }
+
+    @Bean
+    public TaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("crawler-scheduler-");
+        scheduler.initialize();
+        return scheduler;
     }
 }
