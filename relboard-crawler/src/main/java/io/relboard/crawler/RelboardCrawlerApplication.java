@@ -10,7 +10,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 public class RelboardCrawlerApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(RelboardCrawlerApplication.class, args);
-    }
+  public static void main(String[] args) {
+    SpringApplication.run(RelboardCrawlerApplication.class, args);
+  }
 }

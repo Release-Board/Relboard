@@ -7,24 +7,21 @@ import org.junit.jupiter.api.Test;
 
 class ReleaseParserTest {
 
-    private final ReleaseParser parser = new ReleaseParser();
+  private final ReleaseParser parser = new ReleaseParser();
 
-    @Test
-    void extractTags_returnsMatchingTagsIgnoringCase() {
-        String content = "Breaking change: new FEAT added with bug fix and docs update";
+  @Test
+  void extractTags_returnsMatchingTagsIgnoringCase() {
+    String content = "Breaking change: new FEAT added with bug fix and docs update";
 
-        Set<ReleaseTagType> tags = parser.extractTags(content);
+    Set<ReleaseTagType> tags = parser.extractTags(content);
 
-        assertThat(tags).containsExactlyInAnyOrder(
-                ReleaseTagType.BREAKING,
-                ReleaseTagType.FEAT,
-                ReleaseTagType.FIX,
-                ReleaseTagType.DOCS
-        );
-    }
+    assertThat(tags)
+        .containsExactlyInAnyOrder(
+            ReleaseTagType.BREAKING, ReleaseTagType.FEAT, ReleaseTagType.FIX, ReleaseTagType.DOCS);
+  }
 
-    @Test
-    void extractTags_returnsEmptyWhenContentBlank() {
-        assertThat(parser.extractTags(" ")).isEmpty();
-    }
+  @Test
+  void extractTags_returnsEmptyWhenContentBlank() {
+    assertThat(parser.extractTags(" ")).isEmpty();
+  }
 }

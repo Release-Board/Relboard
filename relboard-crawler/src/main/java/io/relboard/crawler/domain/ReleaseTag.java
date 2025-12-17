@@ -22,22 +22,22 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReleaseTag extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "release_id")
-    private ReleaseRecord releaseRecord;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "release_id")
+  private ReleaseRecord releaseRecord;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "tag_type", nullable = false)
-    private ReleaseTagType tagType;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "tag_type", nullable = false)
+  private ReleaseTagType tagType;
 
-    @Builder
-    private ReleaseTag(Long id, ReleaseRecord releaseRecord, ReleaseTagType tagType) {
-        this.id = id;
-        this.releaseRecord = releaseRecord;
-        this.tagType = tagType;
-    }
+  @Builder
+  private ReleaseTag(Long id, ReleaseRecord releaseRecord, ReleaseTagType tagType) {
+    this.id = id;
+    this.releaseRecord = releaseRecord;
+    this.tagType = tagType;
+  }
 }

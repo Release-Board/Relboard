@@ -21,34 +21,39 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReleaseRecord extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "tech_stack_id")
-    private TechStack techStack;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "tech_stack_id")
+  private TechStack techStack;
 
-    @Column(nullable = false)
-    private String version;
+  @Column(nullable = false)
+  private String version;
 
-    @Column(nullable = false)
-    private String title;
+  @Column(nullable = false)
+  private String title;
 
-    @Column(columnDefinition = "TEXT")
-    private String content;
+  @Column(columnDefinition = "TEXT")
+  private String content;
 
-    @Column(name = "published_at")
-    private Instant publishedAt;
+  @Column(name = "published_at")
+  private Instant publishedAt;
 
-    @Builder
-    private ReleaseRecord(Long id, TechStack techStack, String version, String title, String content,
-                          Instant publishedAt) {
-        this.id = id;
-        this.techStack = techStack;
-        this.version = version;
-        this.title = title;
-        this.content = content;
-        this.publishedAt = publishedAt;
-    }
+  @Builder
+  private ReleaseRecord(
+      Long id,
+      TechStack techStack,
+      String version,
+      String title,
+      String content,
+      Instant publishedAt) {
+    this.id = id;
+    this.techStack = techStack;
+    this.version = version;
+    this.title = title;
+    this.content = content;
+    this.publishedAt = publishedAt;
+  }
 }

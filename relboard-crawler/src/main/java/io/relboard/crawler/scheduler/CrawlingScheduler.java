@@ -14,20 +14,20 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CrawlingScheduler {
 
-    private final TechStackSourceRepository techStackSourceRepository;
-    private final CrawlingService crawlingService;
+  private final TechStackSourceRepository techStackSourceRepository;
+  private final CrawlingService crawlingService;
 
-    @Scheduled(cron = "${crawler.schedule.cron:0 */10 * * * *}")
-    public void run() {
-        List<TechStackSource> sources = techStackSourceRepository.findAll();
-        log.info("크롤링 스케줄러 시작 size={}", sources.size());
+  @Scheduled(cron = "${crawler.schedule.cron:0 */10 * * * *}")
+  public void run() {
+    List<TechStackSource> sources = techStackSourceRepository.findAll();
+    log.info("크롤링 스케줄러 시작 size={}", sources.size());
 
-        for (TechStackSource source : sources) {
-            try {
-                crawlingService.process(source.getId());
-            } catch (Exception ex) {
-                log.error("스케줄러가 작업을 제출하지 못함 sourceId={}", source.getId(), ex);
-            }
-        }
+    for (TechStackSource source : sources) {
+      try {
+        crawlingService.process(source.getId());
+      } catch (Exception ex) {
+        log.error("스케줄러가 작업을 제출하지 못함 sourceId={}", source.getId(), ex);
+      }
     }
+  }
 }

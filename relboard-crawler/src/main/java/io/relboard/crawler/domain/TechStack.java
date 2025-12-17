@@ -17,28 +17,27 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TechStack extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @Column(nullable = false)
-    private String name;
+  @Column(nullable = false)
+  private String name;
 
-    @Column(name = "latest_version")
-    private String latestVersion;
+  @Column(name = "latest_version")
+  private String latestVersion;
 
-    @Column
-    private String category;
+  @Column private String category;
 
-    @Builder
-    private TechStack(Long id, String name, String latestVersion, String category) {
-        this.id = id;
-        this.name = name;
-        this.latestVersion = latestVersion;
-        this.category = category;
-    }
+  @Builder
+  private TechStack(Long id, String name, String latestVersion, String category) {
+    this.id = id;
+    this.name = name;
+    this.latestVersion = latestVersion;
+    this.category = category;
+  }
 
-    public void updateLatestVersion(String latestVersion) {
-        this.latestVersion = latestVersion;
-    }
+  public void updateLatestVersion(String latestVersion) {
+    this.latestVersion = latestVersion;
+  }
 }
