@@ -12,6 +12,8 @@ public class RestClientConfig {
     @Value("${github.token:}")
     private String githubToken;
 
+    private static final String USER_AGENT = "Mozilla/5.0 (compatible; relboard-crawler/1.0; +https://github.com/relboard)";
+
     @Bean
     public RestClient.Builder restClientBuilder() {
         return RestClient.builder();
@@ -21,7 +23,8 @@ public class RestClientConfig {
     public RestClient githubRestClient(RestClient.Builder builder) {
         RestClient.Builder spec = builder
                 .baseUrl("https://api.github.com")
-                .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE);
+                .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)
+                .defaultHeader("User-Agent", USER_AGENT);
 
         if (!githubToken.isBlank()) {
             spec = spec.defaultHeader("Authorization", "Bearer " + githubToken);
@@ -35,6 +38,7 @@ public class RestClientConfig {
         return builder
                 .baseUrl("https://search.maven.org")
                 .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)
+                .defaultHeader("User-Agent", USER_AGENT)
                 .build();
     }
 }
