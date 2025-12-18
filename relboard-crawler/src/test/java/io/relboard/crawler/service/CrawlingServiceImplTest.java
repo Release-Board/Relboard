@@ -71,8 +71,7 @@ class CrawlingServiceImplTest {
 
     when(techStackSourceRepository.findById(10L)).thenReturn(Optional.of(source));
     when(mavenClient.fetchVersions("org.example", "app")).thenReturn(Optional.of(List.of("1.0.0")));
-    when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.0.0"))
-        .thenReturn(true);
+    when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.0.0")).thenReturn(true);
 
     crawlingService.process(10L);
 
@@ -99,10 +98,8 @@ class CrawlingServiceImplTest {
     when(techStackSourceRepository.findById(20L)).thenReturn(Optional.of(source));
     when(mavenClient.fetchVersions("org.example", "app"))
         .thenReturn(Optional.of(List.of("1.0.0", "1.1.0")));
-    when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.0.0"))
-        .thenReturn(true);
-    when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.1.0"))
-        .thenReturn(false);
+    when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.0.0")).thenReturn(true);
+    when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.1.0")).thenReturn(false);
 
     GithubClient.ReleaseDetails releaseDetails =
         new GithubClient.ReleaseDetails("Release 1.1.0", "breaking fix docs", Instant.now());

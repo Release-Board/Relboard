@@ -15,30 +15,30 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CrawlingScheduler {
 
-    private final TechStackSourceRepository techStackSourceRepository;
-    private final CrawlingService crawlingService;
-    private final AtomicBoolean running = new AtomicBoolean(false);
+  private final TechStackSourceRepository techStackSourceRepository;
+  private final CrawlingService crawlingService;
+  private final AtomicBoolean running = new AtomicBoolean(false);
 
-    @Scheduled(cron = "${crawler.schedule.cron:0 */10 * * * *}")
-    public void run() {
-        if (!running.compareAndSet(false, true)) {
-            log.info("크롤링 스케줄러가 이미 실행 중이라 건너뜀");
-            return;
-        }
-
-        List<TechStackSource> sources = techStackSourceRepository.findAll();
-        log.info("크롤링 스케줄러 시작 size={}", sources.size());
-
-        try {
-            for (TechStackSource source : sources) {
-                try {
-                    crawlingService.process(source.getId());
-                } catch (Exception ex) {
-                    log.error("스케줄러가 작업을 제출하지 못함 sourceId={}", source.getId(), ex);
-                }
-            }
-        } finally {
-            running.set(false);
-        }
+  @Scheduled(cron = "${crawler.schedule.cron:0 */10 * * * *}")
+  public void run() {
+    if (!running.compareAndSet(false, true)) {
+      log.info("크롤링 스케줄러가 이미 실행 중이라 건너뜀");
+      return;
     }
+
+    List<TechStackSource> sources = techStackSourceRepository.findAll();
+    log.info("크롤링 스케줄러 시작 size={}", sources.size());
+
+    try {
+      for (TechStackSource source : sources) {
+        try {
+          crawlingService.process(source.getId());
+        } catch (Exception ex) {
+          log.error("스케줄러가 작업을 제출하지 못함 sourceId={}", source.getId(), ex);
+        }
+      }
+    } finally {
+      running.set(false);
+    }
+  }
 }

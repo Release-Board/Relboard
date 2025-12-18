@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "kafka")
 public class KafkaProperties {
-    private String bootstrapServers;
-    private int retries;
-    private String topic;
+  private String bootstrapServers;
+  private int retries;
+  private String topic;
 }

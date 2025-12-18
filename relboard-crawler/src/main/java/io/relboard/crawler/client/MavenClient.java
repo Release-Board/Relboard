@@ -30,7 +30,11 @@ public class MavenClient {
     try {
       URI uri =
           URI.create(
-              "https://repo1.maven.org/maven2/" + groupPath + "/" + artifactId + "/maven-metadata.xml");
+              "https://repo1.maven.org/maven2/"
+                  + groupPath
+                  + "/"
+                  + artifactId
+                  + "/maven-metadata.xml");
       if (log.isTraceEnabled()) {
         log.trace("Maven metadata 요청 uri={}", uri);
       }
@@ -56,6 +60,8 @@ public class MavenClient {
   }
 
   public Optional<String> fetchLatestVersion(String groupId, String artifactId) {
-    return fetchVersions(groupId, artifactId).flatMap(list -> list.isEmpty() ? Optional.empty() : Optional.of(list.get(list.size() - 1)));
+    return fetchVersions(groupId, artifactId)
+        .flatMap(
+            list -> list.isEmpty() ? Optional.empty() : Optional.of(list.get(list.size() - 1)));
   }
 }

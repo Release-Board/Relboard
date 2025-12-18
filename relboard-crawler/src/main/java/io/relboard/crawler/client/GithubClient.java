@@ -33,7 +33,9 @@ public class GithubClient {
 
   private Optional<ReleaseDetails> fetchReleaseByTag(String owner, String repo, String tag) {
     try {
-      URI uri = URI.create("https://api.github.com/repos/" + owner + "/" + repo + "/releases/tags/" + tag);
+      URI uri =
+          URI.create(
+              "https://api.github.com/repos/" + owner + "/" + repo + "/releases/tags/" + tag);
       if (log.isTraceEnabled()) {
         log.trace("GitHub 릴리즈 요청 uri={} tag={}", uri, tag);
       }
@@ -56,7 +58,10 @@ public class GithubClient {
 
       Instant publishedAt =
           response.publishedAt() != null ? Instant.parse(response.publishedAt()) : null;
-      String titleFallback = response.name() != null ? response.name() : (response.tagName() != null ? response.tagName() : tag);
+      String titleFallback =
+          response.name() != null
+              ? response.name()
+              : (response.tagName() != null ? response.tagName() : tag);
       String contentFallback = response.body() != null ? response.body() : "";
       return Optional.of(new ReleaseDetails(titleFallback, contentFallback, publishedAt));
     } catch (Exception ex) {

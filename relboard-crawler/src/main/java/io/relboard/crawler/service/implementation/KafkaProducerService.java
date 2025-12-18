@@ -12,13 +12,14 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class KafkaProducerService {
 
-    private final KafkaTemplate<String, ReleaseEvent> kafkaTemplate;
-    private final KafkaProperties kafkaProperties;
+  private final KafkaTemplate<String, ReleaseEvent> kafkaTemplate;
+  private final KafkaProperties kafkaProperties;
 
-    public void sendReleaseEvent(ReleaseEvent event) {
-        log.info("Kafka로 릴리즈 이벤트 전송: {} - {}", event.payload().techStackName(), event.payload().version());
+  public void sendReleaseEvent(ReleaseEvent event) {
+    log.info(
+        "Kafka로 릴리즈 이벤트 전송: {} - {}", event.payload().techStackName(), event.payload().version());
 
-        // techStackName를 키로 사용하여 파티션 순서 보장
-        kafkaTemplate.send(kafkaProperties.getTopic(), event.payload().techStackName(), event);
-    }
+    // techStackName를 키로 사용하여 파티션 순서 보장
+    kafkaTemplate.send(kafkaProperties.getTopic(), event.payload().techStackName(), event);
+  }
 }
