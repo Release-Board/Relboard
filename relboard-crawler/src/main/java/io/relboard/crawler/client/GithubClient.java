@@ -21,7 +21,7 @@ public class GithubClient {
   }
 
   public Optional<ReleaseDetails> fetchReleaseDetails(String owner, String repo, String version) {
-    return Stream.of(version, "v" + version)
+    return Stream.of("v" + version, version)
         .distinct()
         .map(tag -> fetchReleaseByTag(owner, repo, tag))
         .filter(Optional::isPresent)
@@ -56,7 +56,9 @@ public class GithubClient {
 
       Instant publishedAt =
           response.publishedAt() != null ? Instant.parse(response.publishedAt()) : null;
-      return Optional.of(new ReleaseDetails(response.name(), response.body(), publishedAt));
+      String titleFallback = response.name() != null ? response.name() : (response.tagName() != null ? response.tagName() : tag);
+      String contentFallback = response.body() != null ? response.body() : "";
+      return Optional.of(new ReleaseDetails(titleFallback, contentFallback, publishedAt));
     } catch (Exception ex) {
       log.error("GitHub 릴리즈 노트 조회 실패 {}/{} tag {}", owner, repo, tag, ex);
       return Optional.empty();
