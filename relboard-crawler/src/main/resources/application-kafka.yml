@@ -1,0 +1,4 @@
+kafka:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  retries: 3
+  topic: ${KAFKA_TOPIC:relboard.crawler.releases}
