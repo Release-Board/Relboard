@@ -7,6 +7,7 @@ spring:
       - classpath:application-db.yml
       - classpath:application-crawler.yml
       - classpath:application-log.yml
+      - classpath:application-kafka.yml
 
   profiles:
     active: ${PROFILE:local}
