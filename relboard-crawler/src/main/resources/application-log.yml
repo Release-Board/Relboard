@@ -1,3 +1,4 @@
 logging:
   level:
-    io.relboard.crawler.client: trace
+    io.relboard.crawler.client: ${CRAWLER_CLIENT_LOGGING_LEVEL}
+    org.springframework.kafka: ${KAFKA_LOGGING_LEVEL}
