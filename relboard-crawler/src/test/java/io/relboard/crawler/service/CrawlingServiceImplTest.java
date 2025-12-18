@@ -18,6 +18,7 @@ import io.relboard.crawler.repository.ReleaseTagRepository;
 import io.relboard.crawler.repository.TechStackRepository;
 import io.relboard.crawler.repository.TechStackSourceRepository;
 import io.relboard.crawler.service.implementation.CrawlingServiceImpl;
+import io.relboard.crawler.service.implementation.KafkaProducerService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -36,6 +37,7 @@ class CrawlingServiceImplTest {
   @Mock private ReleaseTagRepository releaseTagRepository;
   @Mock private MavenClient mavenClient;
   @Mock private GithubClient githubClient;
+  @Mock private KafkaProducerService kafkaProducerService;
 
   private CrawlingServiceImpl crawlingService;
 
@@ -48,7 +50,8 @@ class CrawlingServiceImplTest {
             releaseRecordRepository,
             releaseTagRepository,
             mavenClient,
-            githubClient);
+            githubClient,
+            kafkaProducerService);
   }
 
   @Test
