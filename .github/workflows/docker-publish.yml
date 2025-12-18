@@ -4,9 +4,6 @@ on:
   workflow_call:
   workflow_dispatch:
 
-env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/relboard-crawler
-
 jobs:
   build-and-push:
     # main 브랜치 또는 v* 태그에만 푸시
@@ -14,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
+    env:
+      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/relboard-crawler
 
     steps:
       - name: Checkout
