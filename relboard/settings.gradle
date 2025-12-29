@@ -1,0 +1,5 @@
+rootProject.name = 'relboard'
+
+// Monorepo modules
+include 'relboard-crawler'
+project(':relboard-crawler').projectDir = file('relboard-crawler')
