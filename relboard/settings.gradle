@@ -3,3 +3,7 @@ rootProject.name = 'relboard'
 // Monorepo modules
 include 'relboard-crawler'
 project(':relboard-crawler').projectDir = file('relboard-crawler')
+
+// Library modules
+include 'libs:sqs'
+project(':libs:sqs').projectDir = file('libs/sqs')
