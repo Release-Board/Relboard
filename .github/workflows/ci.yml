@@ -9,28 +9,15 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: relboard
     permissions:
       contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Detect project directory
-        id: project-dir
-        run: |
-          DIR=$(find . -maxdepth 2 -name gradlew -exec dirname {} \; | head -n 1 | sed 's|^./||')
-          if [ -z "$DIR" ] || [ "$DIR" = "." ]; then
-            if [ -f gradlew ]; then
-              echo "dir=." >> "$GITHUB_OUTPUT"
-            else
-              echo "gradlew not found" >&2
-              exit 1
-            fi
-          else
-            echo "dir=$DIR" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Detected directory: $DIR"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -41,8 +28,6 @@ jobs:
 
       - name: Grant execute permission for Gradle wrapper
         run: chmod +x gradlew
-        working-directory: ${{ steps.project-dir.outputs.dir }}
 
       - name: Run tests
         run: ./gradlew test --no-daemon
-        working-directory: ${{ steps.project-dir.outputs.dir }}
