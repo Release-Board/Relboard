@@ -26,7 +26,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
     volumes:
-      - mysql_data:/var/lib/mysql
+      - relboard_crawler_mysql_data:/var/lib/mysql
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}" ]
       interval: 10s
@@ -45,8 +45,8 @@ services:
       ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT}
       ZOOKEEPER_TICK_TIME: ${ZOOKEEPER_TICK_TIME}
     volumes:
-      - zookeeper_data:/var/lib/zookeeper/data
-      - zookeeper_log:/var/lib/zookeeper/log
+      - relboard_crawler_zookeeper_data:/var/lib/zookeeper/data
+      - relboard_crawler_zookeeper_log:/var/lib/zookeeper/log
 
   relboard-kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -67,10 +67,10 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: ${KAFKA_TRANSACTION_STATE_LOG_MIN_ISR}
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR}
     volumes:
-      - kafka_data:/var/lib/kafka/data
+      - relboard_crawler_kafka_data:/var/lib/kafka/data
 
 volumes:
-  mysql_data:
-  zookeeper_data:
-  zookeeper_log:
-  kafka_data:
+  relboard_crawler_mysql_data:
+  relboard_crawler_zookeeper_data:
+  relboard_crawler_zookeeper_log:
+  relboard_crawler_kafka_data:
