@@ -44,23 +44,25 @@ public class CrawlingServiceImpl implements CrawlingService {
   @Transactional
   @Override
   public void process(Long sourceId) {
+    String techStackName = "sourceId=" + sourceId;
     try {
-      log.info("크롤링 시작 sourceId={}", sourceId);
-
       TechStackSource source = techStackSourceRepository
           .findById(sourceId)
           .orElseThrow(
               () -> new IllegalArgumentException("TechStackSource not found: " + sourceId));
 
+      techStackName = source.getTechStack().getName();
+      log.info("크롤링 시작 techStack={}", techStackName);
+
       if (!source.hasMavenCoordinates() || !source.hasGithubCoordinates()) {
-        log.warn("좌표 정보 부족으로 크롤링 건너뜀 sourceId={}", sourceId);
+        log.warn("좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
         return;
       }
 
       Optional<List<String>> versionsOpt = mavenClient.fetchVersions(source.getMavenGroupId(),
           source.getMavenArtifactId());
       if (versionsOpt.isEmpty()) {
-        log.warn("버전 목록을 찾을 수 없어 크롤링 건너뜀 sourceId={}", sourceId);
+        log.warn("버전 목록을 찾을 수 없어 크롤링 건너뜀 techStack={}", techStackName);
         return;
       }
 
@@ -76,7 +78,7 @@ public class CrawlingServiceImpl implements CrawlingService {
         Optional<GithubClient.ReleaseDetails> releaseDetailsOpt = githubClient.fetchReleaseDetails(
             source.getGithubOwner(), source.getGithubRepo(), version);
         if (releaseDetailsOpt.isEmpty()) {
-          log.warn("릴리즈 노트를 찾을 수 없어 건너뜀 sourceId={} version={} ", sourceId, version);
+          log.warn("릴리즈 노트를 찾을 수 없어 건너뜀 techStack={} version={} ", techStackName, version);
           continue;
         }
 
@@ -114,6 +116,8 @@ public class CrawlingServiceImpl implements CrawlingService {
                     releaseDetails.htmlUrl(),
                     eventTags)));
 
+        log.info("릴리즈 크롤링 성공 techStack={} version={} title={}", techStackName, version, record.getTitle());
+
         lastProcessedVersion = version;
       }
 
@@ -122,9 +126,9 @@ public class CrawlingServiceImpl implements CrawlingService {
         techStackRepository.save(techStack);
       }
 
-      log.info("크롤링 완료 sourceId={} processedUntil={}", sourceId, lastProcessedVersion);
+      log.info("크롤링 완료 techStack={} processedUntil={}", techStackName, lastProcessedVersion);
     } catch (Exception ex) {
-      log.error("크롤링 실패 sourceId={}", sourceId, ex);
+      log.error("크롤링 실패 techStack={}", techStackName, ex);
     }
   }
 }
