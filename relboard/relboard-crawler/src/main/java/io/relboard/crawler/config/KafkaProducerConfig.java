@@ -1,5 +1,6 @@
 package io.relboard.crawler.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.relboard.crawler.event.ReleaseEvent;
 import java.util.HashMap;
 import java.util.Map;
@@ -18,6 +19,7 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 public class KafkaProducerConfig {
 
   private final KafkaProperties kafkaProperties;
+  private final ObjectMapper objectMapper;
 
   @Bean
   public ProducerFactory<String, ReleaseEvent> producerFactory() {
@@ -26,7 +28,8 @@ public class KafkaProducerConfig {
     configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
     configProps.put(ProducerConfig.RETRIES_CONFIG, kafkaProperties.getRetries());
-    return new DefaultKafkaProducerFactory<>(configProps);
+    return new DefaultKafkaProducerFactory<>(
+        configProps, new StringSerializer(), new JsonSerializer<>(objectMapper));
   }
 
   @Bean
