@@ -14,6 +14,8 @@ services:
       - relboard-cralwer-mysql
       - relboard-zookeeper
     restart: unless-stopped
+    networks:
+      - relboard-network
 
   relboard-cralwer-mysql:
     image: mysql:8.4
@@ -33,6 +35,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - relboard-network
 
   relboard-zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -47,6 +51,8 @@ services:
     volumes:
       - relboard_crawler_zookeeper_data:/var/lib/zookeeper/data
       - relboard_crawler_zookeeper_log:/var/lib/zookeeper/log
+    networks:
+      - relboard-network
 
   relboard-kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -68,9 +74,19 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR}
     volumes:
       - relboard_crawler_kafka_data:/var/lib/kafka/data
+    networks:
+      - relboard_extern_network
+      - relboard-network
 
 volumes:
   relboard_crawler_mysql_data:
   relboard_crawler_zookeeper_data:
   relboard_crawler_zookeeper_log:
   relboard_crawler_kafka_data:
+
+
+networks:
+  relboard_extern_network:
+    external: true
+  relboard-network:
+    driver: bridge
