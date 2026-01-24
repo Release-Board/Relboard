@@ -29,15 +29,27 @@ public class TechStack extends BaseEntity {
 
   @Column private String category;
 
+  @Column(name = "color_hex")
+  private String colorHex;
+
   @Builder
-  private TechStack(Long id, String name, String latestVersion, String category) {
+  private TechStack(Long id, String name, String latestVersion, String category, String colorHex) {
     this.id = id;
     this.name = name;
     this.latestVersion = latestVersion;
     this.category = category;
+    this.colorHex = colorHex;
   }
 
   public void updateLatestVersion(String latestVersion) {
     this.latestVersion = latestVersion;
+  }
+
+  public void updateCategory(String category) {
+    this.category = category;
+  }
+
+  public void updateColorHex(String colorHex) {
+    this.colorHex = colorHex;
   }
 }
