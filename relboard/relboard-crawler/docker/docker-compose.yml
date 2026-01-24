@@ -12,7 +12,7 @@ services:
       - "8080:8080"
     depends_on:
       - relboard-cralwer-mysql
-      - relboard-crawler-zookeeper
+      - relboard-zookeeper
     restart: unless-stopped
 
   relboard-cralwer-mysql:
