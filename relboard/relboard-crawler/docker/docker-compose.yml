@@ -15,7 +15,7 @@ services:
       - kafka
     restart: unless-stopped
 
-  mysql:
+  relboard-cralwer-mysql:
     image: mysql:8.4
     container_name: relboard-crawler-mysql
     env_file:
