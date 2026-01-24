@@ -71,4 +71,17 @@ public class TechStackSource extends BaseEntity {
   public boolean hasGithubCoordinates() {
     return githubOwner != null && githubRepo != null;
   }
+
+  public void updateSource(
+      TechStackSourceType type,
+      String githubOwner,
+      String githubRepo,
+      String mavenGroupId,
+      String mavenArtifactId) {
+    this.type = type;
+    this.githubOwner = githubOwner;
+    this.githubRepo = githubRepo;
+    this.mavenGroupId = mavenGroupId;
+    this.mavenArtifactId = mavenArtifactId;
+  }
 }

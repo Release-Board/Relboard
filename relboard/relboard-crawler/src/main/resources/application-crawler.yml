@@ -1,6 +1,8 @@
 crawler:
   schedule:
     cron: ${CRAWLER_SCHEDULE_CRON:0 */10 * * * *}
+  service:
+    base-url: ${CRAWLER_SERVICE_BASE_URL:http://localhost:8081}
 
 github:
   token: ${GITHUB_TOKEN:}
