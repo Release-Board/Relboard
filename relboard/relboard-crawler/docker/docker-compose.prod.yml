@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   relboard-crawler:
-    image: relboard-crawler
+    image: ${CRAWLER_IMAGE}
     container_name: relboard-crawler
     env_file:
       - ./app.env
