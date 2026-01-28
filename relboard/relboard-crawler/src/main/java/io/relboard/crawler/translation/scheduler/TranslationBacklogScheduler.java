@@ -1,16 +1,19 @@
 package io.relboard.crawler.translation.scheduler;
 
-import io.relboard.crawler.release.domain.ReleaseRecord;
-import io.relboard.crawler.translation.domain.TranslationBacklog;
-import io.relboard.crawler.translation.domain.TranslationBacklogStatus;
 import io.relboard.crawler.release.event.ReleaseEvent;
+import io.relboard.crawler.release.domain.ReleaseRecord;
 import io.relboard.crawler.translation.repository.TranslationBacklogRepository;
 import io.relboard.crawler.translation.application.AiTranslationService;
 import io.relboard.crawler.infra.kafka.KafkaProducer;
-import io.relboard.crawler.translation.domain.TranslationResult;
+import io.relboard.crawler.translation.domain.BatchTranslationResult;
+import io.relboard.crawler.translation.domain.TranslationBacklog;
+import io.relboard.crawler.translation.domain.TranslationBacklogStatus;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
@@ -30,9 +33,16 @@ public class TranslationBacklogScheduler {
   private final AiTranslationService aiTranslationService;
   private final KafkaProducer kafkaProducer;
   private final AtomicBoolean running = new AtomicBoolean(false);
+  private Instant lastBatchRunAt = Instant.EPOCH;
 
-  @Value("${translation.backlog.batch-size:20}")
+  @Value("${translation.backlog.batch-size:50}")
   private int batchSize;
+
+  @Value("${translation.backlog.min-pending:50}")
+  private int minPendingCount;
+
+  @Value("${translation.backlog.min-interval-minutes:60}")
+  private int minIntervalMinutes;
 
   @Scheduled(cron = "${translation.backlog.cron:0 */5 * * * *}")
   @Transactional
@@ -43,43 +53,59 @@ public class TranslationBacklogScheduler {
     }
 
     try {
-      List<TranslationBacklog> backlogItems = translationBacklogRepository
-          .findByStatusInOrderByCreatedAtAsc(
-              List.of(TranslationBacklogStatus.PENDING, TranslationBacklogStatus.FAILED),
-              PageRequest.of(0, batchSize));
-
-      if (backlogItems.isEmpty()) {
+      long pendingCount = translationBacklogRepository.countByStatus(TranslationBacklogStatus.PENDING);
+      if (pendingCount == 0) {
         return;
       }
 
-      for (TranslationBacklog backlog : backlogItems) {
-        backlog.markProcessing();
+      Instant now = Instant.now();
+      boolean ready = pendingCount >= minPendingCount
+          || Duration.between(lastBatchRunAt, now).toMinutes() >= minIntervalMinutes;
+      if (!ready) {
+        return;
+      }
 
+      List<TranslationBacklog> batch = translationBacklogRepository.findByStatusOrderByCreatedAtAsc(
+          TranslationBacklogStatus.PENDING,
+          PageRequest.of(0, batchSize));
+
+      if (batch.isEmpty()) {
+        return;
+      }
+
+      BatchTranslationResult result = aiTranslationService.translateBatch(batch);
+      lastBatchRunAt = now;
+
+      if (result.status() == BatchTranslationResult.Status.SKIPPED_QUOTA
+          || result.status() == BatchTranslationResult.Status.SKIPPED_NO_KEY) {
+        log.info("번역 백로그 처리 중단 status={}", result.status());
+        return;
+      }
+
+      if (result.status() != BatchTranslationResult.Status.SUCCESS) {
+        handleBatchFailure(batch, result.error());
+        return;
+      }
+
+      Map<Long, String> translations = result.translations();
+      for (TranslationBacklog backlog : batch) {
+        String translated = translations.get(backlog.getId());
+        if (translated == null) {
+          handleBatchFailure(batch, "missing translated content");
+          return;
+        }
         ReleaseRecord record = backlog.getReleaseRecord();
-        TranslationResult result = aiTranslationService.translateWithStatus(record.getContent());
-
-        if (result.status() == TranslationResult.Status.SUCCESS) {
-          publishTranslation(record, backlog.getSourceUrl(), result.content());
-          backlog.markDone();
-          continue;
-        }
-
-        if (result.status() == TranslationResult.Status.SKIPPED_QUOTA
-            || result.status() == TranslationResult.Status.SKIPPED_NO_KEY) {
-          backlog.markPending();
-          log.info("번역 백로그 처리 중단 status={}", result.status());
-          break;
-        }
-
-        if (result.status() == TranslationResult.Status.SKIPPED_EMPTY) {
-          backlog.markFailed(result.error());
-          continue;
-        }
-
-        backlog.markFailed(result.error());
+        publishTranslation(record, backlog.getSourceUrl(), translated);
+        backlog.markDone();
       }
     } finally {
       running.set(false);
+    }
+  }
+
+  private void handleBatchFailure(List<TranslationBacklog> batch, String error) {
+    for (TranslationBacklog backlog : batch) {
+      backlog.recordFailure(error, 3);
     }
   }
 

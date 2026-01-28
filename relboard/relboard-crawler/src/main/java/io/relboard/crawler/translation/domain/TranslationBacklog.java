@@ -79,9 +79,11 @@ public class TranslationBacklog extends BaseEntity {
     this.status = TranslationBacklogStatus.PENDING;
   }
 
-  public void markFailed(String error) {
-    this.status = TranslationBacklogStatus.FAILED;
+  public void recordFailure(String error, int maxRetries) {
     this.retryCount += 1;
     this.lastError = error;
+    this.status = this.retryCount >= maxRetries
+        ? TranslationBacklogStatus.FAILED
+        : TranslationBacklogStatus.PENDING;
   }
 }

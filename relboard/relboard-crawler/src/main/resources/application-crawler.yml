@@ -10,11 +10,13 @@ github:
 ai:
   gemini:
     api-key: ${GEMINI_API_KEY:}
-    model: ${GEMINI_MODEL:gemini-2.5-flash-lite}
+    model: ${GEMINI_MODEL:gemini-1.5-flash}
     min-interval-ms: ${GEMINI_MIN_INTERVAL_MS:6000}
     max-requests-per-day: ${GEMINI_MAX_REQUESTS_PER_DAY:20}
 
 translation:
   backlog:
     cron: ${TRANSLATION_BACKLOG_CRON:0 */5 * * * *}
-    batch-size: ${TRANSLATION_BACKLOG_BATCH_SIZE:20}
+    batch-size: ${TRANSLATION_BACKLOG_BATCH_SIZE:50}
+    min-pending: ${TRANSLATION_BACKLOG_MIN_PENDING:50}
+    min-interval-minutes: ${TRANSLATION_BACKLOG_MIN_INTERVAL_MINUTES:60}
