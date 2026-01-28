@@ -9,6 +9,7 @@ public record ReleaseEvent(String eventId, LocalDateTime occurredAt, Payload pay
       String version,
       String title,
       String content,
+      String contentKo,
       LocalDateTime publishedAt,
       String sourceUrl,
       List<Tag> tags) {}

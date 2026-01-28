@@ -38,6 +38,7 @@ public class CrawlingServiceImpl implements CrawlingService {
   private final MavenClient mavenClient;
   private final GithubClient githubClient;
   private final KafkaProducerService kafkaProducerService;
+  private final AiTranslationService aiTranslationService;
   private final ReleaseParser releaseParser = new ReleaseParser();
 
   @Async("crawlerExecutor")
@@ -83,6 +84,7 @@ public class CrawlingServiceImpl implements CrawlingService {
         }
 
         GithubClient.ReleaseDetails releaseDetails = releaseDetailsOpt.get();
+        String translatedContent = aiTranslationService.translateToKorean(releaseDetails.content());
         ReleaseRecord record = releaseRecordRepository.save(
             ReleaseRecord.builder()
                 .techStack(techStack)
@@ -112,6 +114,7 @@ public class CrawlingServiceImpl implements CrawlingService {
                     version,
                     record.getTitle(),
                     record.getContent(),
+                    translatedContent,
                     LocalDateTime.ofInstant(record.getPublishedAt(), ZoneId.of("Asia/Seoul")),
                     releaseDetails.htmlUrl(),
                     eventTags)));
