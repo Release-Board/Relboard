@@ -45,13 +45,16 @@ public class AiTranslationService {
 
       Map<String, Object> part = new HashMap<>();
       part.put("text", buildPrompt(content));
+
       Map<String, Object> contentObj = new HashMap<>();
       contentObj.put("parts", List.of(part));
+
       Map<String, Object> body = new HashMap<>();
       body.put("contents", List.of(contentObj));
 
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
+
       HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
       JsonNode response = restTemplate.postForObject(url, request, JsonNode.class);
