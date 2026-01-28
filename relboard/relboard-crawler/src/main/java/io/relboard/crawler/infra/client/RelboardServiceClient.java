@@ -5,10 +5,10 @@ import io.relboard.crawler.infra.client.dto.TechStackSourceSyncResponse;
 import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -28,7 +28,8 @@ public class RelboardServiceClient {
             url,
             HttpMethod.GET,
             null,
-            new ParameterizedTypeReference<CommonApiResponse<List<TechStackSourceSyncResponse>>>() {});
+            new ParameterizedTypeReference<
+                CommonApiResponse<List<TechStackSourceSyncResponse>>>() {});
     CommonApiResponse<List<TechStackSourceSyncResponse>> body = response.getBody();
     if (body == null || !body.isSuccess() || body.getData() == null) {
       return Collections.emptyList();

@@ -15,7 +15,5 @@ public interface TranslationBacklogRepository extends JpaRepository<TranslationB
 
   @EntityGraph(attributePaths = {"releaseRecord", "releaseRecord.techStack"})
   List<TranslationBacklog> findByStatusOrderByCreatedAtAsc(
-      TranslationBacklogStatus status,
-      Pageable pageable);
-
+      TranslationBacklogStatus status, Pageable pageable);
 }

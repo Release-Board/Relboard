@@ -7,15 +7,15 @@ import io.relboard.crawler.release.domain.ReleaseParser;
 import io.relboard.crawler.release.domain.ReleaseRecord;
 import io.relboard.crawler.release.domain.ReleaseTag;
 import io.relboard.crawler.release.domain.ReleaseTagType;
-import io.relboard.crawler.techstack.domain.TechStack;
-import io.relboard.crawler.techstack.domain.TechStackSource;
-import io.relboard.crawler.translation.domain.TranslationBacklog;
-import io.relboard.crawler.translation.domain.TranslationBacklogStatus;
 import io.relboard.crawler.release.event.ReleaseEvent;
 import io.relboard.crawler.release.repository.ReleaseRecordRepository;
 import io.relboard.crawler.release.repository.ReleaseTagRepository;
+import io.relboard.crawler.techstack.domain.TechStack;
+import io.relboard.crawler.techstack.domain.TechStackSource;
 import io.relboard.crawler.techstack.repository.TechStackRepository;
 import io.relboard.crawler.techstack.repository.TechStackSourceRepository;
+import io.relboard.crawler.translation.domain.TranslationBacklog;
+import io.relboard.crawler.translation.domain.TranslationBacklogStatus;
 import io.relboard.crawler.translation.repository.TranslationBacklogRepository;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -50,10 +50,11 @@ public class CrawlingServiceImpl implements CrawlingService {
   public void process(Long sourceId) {
     String techStackName = "sourceId=" + sourceId;
     try {
-      TechStackSource source = techStackSourceRepository
-          .findById(sourceId)
-          .orElseThrow(
-              () -> new IllegalArgumentException("TechStackSource not found: " + sourceId));
+      TechStackSource source =
+          techStackSourceRepository
+              .findById(sourceId)
+              .orElseThrow(
+                  () -> new IllegalArgumentException("TechStackSource not found: " + sourceId));
 
       techStackName = source.getTechStack().getName();
       log.info("크롤링 시작 techStack={}", techStackName);
@@ -63,8 +64,8 @@ public class CrawlingServiceImpl implements CrawlingService {
         return;
       }
 
-      Optional<List<String>> versionsOpt = mavenClient.fetchVersions(source.getMavenGroupId(),
-          source.getMavenArtifactId());
+      Optional<List<String>> versionsOpt =
+          mavenClient.fetchVersions(source.getMavenGroupId(), source.getMavenArtifactId());
       if (versionsOpt.isEmpty()) {
         log.warn("버전 목록을 찾을 수 없어 크롤링 건너뜀 techStack={}", techStackName);
         return;
@@ -79,32 +80,35 @@ public class CrawlingServiceImpl implements CrawlingService {
           continue;
         }
 
-        Optional<GithubClient.ReleaseDetails> releaseDetailsOpt = githubClient.fetchReleaseDetails(
-            source.getGithubOwner(), source.getGithubRepo(), version);
+        Optional<GithubClient.ReleaseDetails> releaseDetailsOpt =
+            githubClient.fetchReleaseDetails(
+                source.getGithubOwner(), source.getGithubRepo(), version);
         if (releaseDetailsOpt.isEmpty()) {
           log.warn("릴리즈 노트를 찾을 수 없어 건너뜀 techStack={} version={} ", techStackName, version);
           continue;
         }
 
         GithubClient.ReleaseDetails releaseDetails = releaseDetailsOpt.get();
-        ReleaseRecord record = releaseRecordRepository.save(
-            ReleaseRecord.builder()
-                .techStack(techStack)
-                .version(version)
-                .title(releaseDetails.title() != null ? releaseDetails.title() : version)
-                .content(releaseDetails.content())
-                .publishedAt(releaseDetails.publishedAt())
-                .build());
+        ReleaseRecord record =
+            releaseRecordRepository.save(
+                ReleaseRecord.builder()
+                    .techStack(techStack)
+                    .version(version)
+                    .title(releaseDetails.title() != null ? releaseDetails.title() : version)
+                    .content(releaseDetails.content())
+                    .publishedAt(releaseDetails.publishedAt())
+                    .build());
 
         Set<ReleaseTagType> tags = releaseParser.extractTags(releaseDetails.content());
-        List<ReleaseEvent.Tag> eventTags = tags.stream()
-            .map(
-                tagType -> {
-                  releaseTagRepository.save(
-                      ReleaseTag.builder().releaseRecord(record).tagType(tagType).build());
-                  return new ReleaseEvent.Tag(tagType.name(), "Auto-extracted");
-                })
-            .toList();
+        List<ReleaseEvent.Tag> eventTags =
+            tags.stream()
+                .map(
+                    tagType -> {
+                      releaseTagRepository.save(
+                          ReleaseTag.builder().releaseRecord(record).tagType(tagType).build());
+                      return new ReleaseEvent.Tag(tagType.name(), "Auto-extracted");
+                    })
+                .toList();
 
         // Kafka 메시지 전송
         kafkaProducer.sendReleaseEvent(
@@ -123,7 +127,11 @@ public class CrawlingServiceImpl implements CrawlingService {
 
         enqueueTranslationBacklog(record, releaseDetails.htmlUrl());
 
-        log.info("릴리즈 크롤링 성공 techStack={} version={} title={}", techStackName, version, record.getTitle());
+        log.info(
+            "릴리즈 크롤링 성공 techStack={} version={} title={}",
+            techStackName,
+            version,
+            record.getTitle());
 
         lastProcessedVersion = version;
       }

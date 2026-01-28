@@ -58,28 +58,27 @@ public class AiTranslationService {
     }
 
     try {
-      List<Map<String, Object>> payload = backlogs.stream()
-          .map(
-              backlog -> Map.<String, Object>of(
-                  "id", backlog.getId(),
-                  "content", backlog.getReleaseRecord().getContent()))
-          .toList();
+      List<Map<String, Object>> payload =
+          backlogs.stream()
+              .map(
+                  backlog ->
+                      Map.<String, Object>of(
+                          "id", backlog.getId(),
+                          "content", backlog.getReleaseRecord().getContent()))
+              .toList();
       String payloadJson = objectMapper.writeValueAsString(payload);
       String prompt = buildBatchPrompt(payloadJson);
 
-      String response = GoogleAiGeminiChatModel.builder()
-          .apiKey(apiKey)
-          .modelName(model)
-          .build()
-          .chat(prompt);
+      String response =
+          GoogleAiGeminiChatModel.builder().apiKey(apiKey).modelName(model).build().chat(prompt);
 
       String json = extractJsonArray(response);
       if (json == null) {
         return BatchTranslationResult.failed("invalid json response");
       }
 
-      List<TranslationItem> items = objectMapper.readValue(
-          json, new TypeReference<List<TranslationItem>>() {});
+      List<TranslationItem> items =
+          objectMapper.readValue(json, new TypeReference<List<TranslationItem>>() {});
       Map<Long, String> translations = new HashMap<>();
       Set<Long> expectedIds = new HashSet<>();
       for (TranslationBacklog backlog : backlogs) {
@@ -136,7 +135,8 @@ public class AiTranslationService {
   }
 
   private String buildBatchPrompt(String payloadJson) {
-    return String.join("\n",
+    return String.join(
+        "\n",
         "역할: Professional IT Technical Translator.",
         "규칙:",
         "- 요약 금지. 원문 정보를 빠짐없이 1:1 번역.",
@@ -148,8 +148,7 @@ public class AiTranslationService {
         "다음 JSON 배열의 content를 한국어로 번역해줘.",
         "응답 형식: [{\"id\": <id>, \"translated\": \"<korean>\"}, ...]",
         "JSON 배열:",
-        payloadJson
-    );
+        payloadJson);
   }
 
   private String extractJsonArray(String text) {

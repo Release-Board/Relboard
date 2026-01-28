@@ -23,9 +23,10 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
     name = "translation_backlog",
-    uniqueConstraints = @UniqueConstraint(
-        name = "uk_translation_backlog_release_record",
-        columnNames = "release_record_id"))
+    uniqueConstraints =
+        @UniqueConstraint(
+            name = "uk_translation_backlog_release_record",
+            columnNames = "release_record_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TranslationBacklog extends BaseEntity {
 
@@ -82,8 +83,9 @@ public class TranslationBacklog extends BaseEntity {
   public void recordFailure(String error, int maxRetries) {
     this.retryCount += 1;
     this.lastError = error;
-    this.status = this.retryCount >= maxRetries
-        ? TranslationBacklogStatus.FAILED
-        : TranslationBacklogStatus.PENDING;
+    this.status =
+        this.retryCount >= maxRetries
+            ? TranslationBacklogStatus.FAILED
+            : TranslationBacklogStatus.PENDING;
   }
 }

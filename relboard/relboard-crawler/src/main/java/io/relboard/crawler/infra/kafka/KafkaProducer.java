@@ -1,6 +1,5 @@
 package io.relboard.crawler.infra.kafka;
 
-import io.relboard.crawler.infra.kafka.KafkaProperties;
 import io.relboard.crawler.release.event.ReleaseEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

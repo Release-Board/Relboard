@@ -1,13 +1,13 @@
 package io.relboard.crawler.translation.scheduler;
 
-import io.relboard.crawler.release.event.ReleaseEvent;
-import io.relboard.crawler.release.domain.ReleaseRecord;
-import io.relboard.crawler.translation.repository.TranslationBacklogRepository;
-import io.relboard.crawler.translation.application.AiTranslationService;
 import io.relboard.crawler.infra.kafka.KafkaProducer;
+import io.relboard.crawler.release.domain.ReleaseRecord;
+import io.relboard.crawler.release.event.ReleaseEvent;
+import io.relboard.crawler.translation.application.AiTranslationService;
 import io.relboard.crawler.translation.domain.BatchTranslationResult;
 import io.relboard.crawler.translation.domain.TranslationBacklog;
 import io.relboard.crawler.translation.domain.TranslationBacklogStatus;
+import io.relboard.crawler.translation.repository.TranslationBacklogRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -53,21 +53,23 @@ public class TranslationBacklogScheduler {
     }
 
     try {
-      long pendingCount = translationBacklogRepository.countByStatus(TranslationBacklogStatus.PENDING);
+      long pendingCount =
+          translationBacklogRepository.countByStatus(TranslationBacklogStatus.PENDING);
       if (pendingCount == 0) {
         return;
       }
 
       Instant now = Instant.now();
-      boolean ready = pendingCount >= minPendingCount
-          || Duration.between(lastBatchRunAt, now).toMinutes() >= minIntervalMinutes;
+      boolean ready =
+          pendingCount >= minPendingCount
+              || Duration.between(lastBatchRunAt, now).toMinutes() >= minIntervalMinutes;
       if (!ready) {
         return;
       }
 
-      List<TranslationBacklog> batch = translationBacklogRepository.findByStatusOrderByCreatedAtAsc(
-          TranslationBacklogStatus.PENDING,
-          PageRequest.of(0, batchSize));
+      List<TranslationBacklog> batch =
+          translationBacklogRepository.findByStatusOrderByCreatedAtAsc(
+              TranslationBacklogStatus.PENDING, PageRequest.of(0, batchSize));
 
       if (batch.isEmpty()) {
         return;
@@ -110,9 +112,10 @@ public class TranslationBacklogScheduler {
   }
 
   private void publishTranslation(ReleaseRecord record, String sourceUrl, String contentKo) {
-    LocalDateTime publishedAt = record.getPublishedAt() != null
-        ? LocalDateTime.ofInstant(record.getPublishedAt(), ZoneId.of("Asia/Seoul"))
-        : null;
+    LocalDateTime publishedAt =
+        record.getPublishedAt() != null
+            ? LocalDateTime.ofInstant(record.getPublishedAt(), ZoneId.of("Asia/Seoul"))
+            : null;
     kafkaProducer.sendReleaseEvent(
         new ReleaseEvent(
             UUID.randomUUID().toString(),
