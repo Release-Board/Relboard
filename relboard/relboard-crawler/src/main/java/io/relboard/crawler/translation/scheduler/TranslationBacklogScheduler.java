@@ -93,8 +93,8 @@ public class TranslationBacklogScheduler {
       for (TranslationBacklog backlog : batch) {
         String translated = translations.get(backlog.getId());
         if (translated == null) {
-          handleBatchFailure(batch, "missing translated content");
-          return;
+          backlog.recordFailure("missing translated content", 3);
+          continue;
         }
         ReleaseRecord record = backlog.getReleaseRecord();
         publishTranslation(record, backlog.getSourceUrl(), translated);

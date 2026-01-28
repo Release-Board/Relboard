@@ -48,6 +48,7 @@ public class CrawlingServiceImpl implements CrawlingService {
   @Transactional
   @Override
   public void process(Long sourceId) {
+    long processStartNs = System.nanoTime();
     String techStackName = "sourceId=" + sourceId;
     try {
       TechStackSource source =
@@ -76,6 +77,7 @@ public class CrawlingServiceImpl implements CrawlingService {
       String lastProcessedVersion = null;
 
       for (String version : versions) {
+        long releaseStartNs = System.nanoTime();
         if (releaseRecordRepository.existsByTechStackAndVersion(techStack, version)) {
           continue;
         }
@@ -111,6 +113,10 @@ public class CrawlingServiceImpl implements CrawlingService {
                 .toList();
 
         // Kafka 메시지 전송
+        LocalDateTime publishedAt =
+            record.getPublishedAt() != null
+                ? LocalDateTime.ofInstant(record.getPublishedAt(), ZoneId.of("Asia/Seoul"))
+                : null;
         kafkaProducer.sendReleaseEvent(
             new ReleaseEvent(
                 UUID.randomUUID().toString(),
@@ -121,7 +127,7 @@ public class CrawlingServiceImpl implements CrawlingService {
                     record.getTitle(),
                     record.getContent(),
                     null,
-                    LocalDateTime.ofInstant(record.getPublishedAt(), ZoneId.of("Asia/Seoul")),
+                    publishedAt,
                     releaseDetails.htmlUrl(),
                     eventTags)));
 
@@ -132,6 +138,9 @@ public class CrawlingServiceImpl implements CrawlingService {
             techStackName,
             version,
             record.getTitle());
+        long releaseMs = (System.nanoTime() - releaseStartNs) / 1_000_000L;
+        log.trace(
+            "릴리즈 처리 시간 techStack={} version={} elapsedMs={}", techStackName, version, releaseMs);
 
         lastProcessedVersion = version;
       }
@@ -141,7 +150,12 @@ public class CrawlingServiceImpl implements CrawlingService {
         techStackRepository.save(techStack);
       }
 
-      log.info("크롤링 완료 techStack={} processedUntil={}", techStackName, lastProcessedVersion);
+      long totalMs = (System.nanoTime() - processStartNs) / 1_000_000L;
+      log.info(
+          "크롤링 완료 techStack={} processedUntil={} elapsedMs={}",
+          techStackName,
+          lastProcessedVersion,
+          totalMs);
     } catch (Exception ex) {
       log.error("크롤링 실패 techStack={}", techStackName, ex);
     }

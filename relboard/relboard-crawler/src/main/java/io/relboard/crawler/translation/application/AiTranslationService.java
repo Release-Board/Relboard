@@ -1,6 +1,7 @@
 package io.relboard.crawler.translation.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
@@ -8,6 +9,7 @@ import io.relboard.crawler.translation.domain.BatchTranslationResult;
 import io.relboard.crawler.translation.domain.TranslationBacklog;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -43,7 +45,9 @@ public class AiTranslationService {
   private LocalDate requestDate = LocalDate.now(ZoneOffset.UTC);
 
   public BatchTranslationResult translateBatch(List<TranslationBacklog> backlogs) {
+    long startNs = System.nanoTime();
     if (backlogs == null || backlogs.isEmpty()) {
+      log.trace("AI batch translate skipped: empty batch");
       return BatchTranslationResult.success(Map.of());
     }
     if (apiKey == null || apiKey.isBlank()) {
@@ -69,37 +73,41 @@ public class AiTranslationService {
       String payloadJson = objectMapper.writeValueAsString(payload);
       String prompt = buildBatchPrompt(payloadJson);
 
+      long requestStartNs = System.nanoTime();
       String response =
           GoogleAiGeminiChatModel.builder().apiKey(apiKey).modelName(model).build().chat(prompt);
+      long requestMs = (System.nanoTime() - requestStartNs) / 1_000_000L;
+      log.trace(
+          "AI batch translate request completed size={} elapsedMs={}", backlogs.size(), requestMs);
 
       String json = extractJsonArray(response);
       if (json == null) {
         return BatchTranslationResult.failed("invalid json response");
       }
 
-      List<TranslationItem> items =
-          objectMapper.readValue(json, new TypeReference<List<TranslationItem>>() {});
+      List<TranslationItem> items = parseItems(json);
       Map<Long, String> translations = new HashMap<>();
       Set<Long> expectedIds = new HashSet<>();
       for (TranslationBacklog backlog : backlogs) {
         expectedIds.add(backlog.getId());
       }
       for (TranslationItem item : items) {
-        if (item.id() == null || item.translated() == null) {
-          return BatchTranslationResult.failed("missing id or translated");
+        if (item == null || item.id() == null || item.translated() == null) {
+          log.warn("AI response contains invalid item. Skip.");
+          continue;
         }
         if (!expectedIds.contains(item.id())) {
-          return BatchTranslationResult.failed("unexpected id: " + item.id());
+          log.warn("AI response contains unexpected id. Skip id={}", item.id());
+          continue;
         }
         translations.put(item.id(), item.translated().trim());
       }
-      if (translations.size() != expectedIds.size()) {
-        return BatchTranslationResult.failed("response id count mismatch");
+      if (translations.isEmpty()) {
+        return BatchTranslationResult.failed("no valid translations");
       }
+      long totalMs = (System.nanoTime() - startNs) / 1_000_000L;
+      log.trace("AI batch translate finished size={} elapsedMs={}", backlogs.size(), totalMs);
       return BatchTranslationResult.success(translations);
-    } catch (JsonProcessingException ex) {
-      log.error("[AI Translation Fail] json parse error: {}", ex.getMessage());
-      return BatchTranslationResult.failed("json parse error");
     } catch (Exception ex) {
       log.error("[AI Translation Fail] {}", ex.getMessage());
       return BatchTranslationResult.failed(ex.getMessage());
@@ -161,6 +169,58 @@ public class AiTranslationService {
       return null;
     }
     return text.substring(start, end + 1);
+  }
+
+  private List<TranslationItem> parseItems(String json) throws JsonProcessingException {
+    try {
+      return objectMapper.readValue(json, new TypeReference<List<TranslationItem>>() {});
+    } catch (JsonProcessingException ex) {
+      log.error("[AI Translation Fail] json parse error: {}", ex.getMessage());
+      String recovered = recoverJsonArray(json);
+      if (recovered == null) {
+        throw ex;
+      }
+      return parseItemsLenient(recovered);
+    }
+  }
+
+  private List<TranslationItem> parseItemsLenient(String json) throws JsonProcessingException {
+    List<TranslationItem> items = new ArrayList<>();
+    try (var parser = objectMapper.getFactory().createParser(json)) {
+      if (parser.nextToken() != JsonToken.START_ARRAY) {
+        return items;
+      }
+      while (parser.nextToken() == JsonToken.START_OBJECT) {
+        try {
+          TranslationItem item = objectMapper.readValue(parser, TranslationItem.class);
+          items.add(item);
+        } catch (Exception ex) {
+          log.warn(
+              "AI response partial parse stopped size={} reason={}", items.size(), ex.getMessage());
+          break;
+        }
+      }
+      if (!items.isEmpty()) {
+        log.warn("AI response partial parse succeeded size={}", items.size());
+      }
+      return items;
+    } catch (JsonProcessingException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      throw new JsonProcessingException(ex.getMessage(), ex) {};
+    }
+  }
+
+  private String recoverJsonArray(String text) {
+    if (text == null) {
+      return null;
+    }
+    int start = text.indexOf('[');
+    int lastBrace = text.lastIndexOf('}');
+    if (start < 0 || lastBrace < start) {
+      return null;
+    }
+    return text.substring(start, lastBrace + 1) + "]";
   }
 
   private enum GateResult {

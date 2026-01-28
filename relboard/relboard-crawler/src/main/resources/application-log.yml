@@ -1,4 +1,6 @@
 logging:
   level:
-    io.relboard.crawler.client: ${CRAWLER_CLIENT_LOGGING_LEVEL}
+    io.relboard.crawler.infra.client: ${CRAWLER_CLIENT_LOGGING_LEVEL:INFO}
+    io.relboard.crawler.translation: ${CRAWLER_TRANSLATION_LOGGING_LEVEL:INFO}
+    io.relboard.crawler.crawler: ${CRAWLER_PROCESS_LOGGING_LEVEL:INFO}
     org.springframework.kafka: ${KAFKA_LOGGING_LEVEL}
