@@ -8,11 +8,14 @@ import io.relboard.crawler.domain.ReleaseTag;
 import io.relboard.crawler.domain.ReleaseTagType;
 import io.relboard.crawler.domain.TechStack;
 import io.relboard.crawler.domain.TechStackSource;
+import io.relboard.crawler.domain.TranslationBacklog;
+import io.relboard.crawler.domain.TranslationBacklogStatus;
 import io.relboard.crawler.event.ReleaseEvent;
 import io.relboard.crawler.repository.ReleaseRecordRepository;
 import io.relboard.crawler.repository.ReleaseTagRepository;
 import io.relboard.crawler.repository.TechStackRepository;
 import io.relboard.crawler.repository.TechStackSourceRepository;
+import io.relboard.crawler.repository.TranslationBacklogRepository;
 import io.relboard.crawler.service.abstraction.CrawlingService;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -39,6 +42,7 @@ public class CrawlingServiceImpl implements CrawlingService {
   private final GithubClient githubClient;
   private final KafkaProducerService kafkaProducerService;
   private final AiTranslationService aiTranslationService;
+  private final TranslationBacklogRepository translationBacklogRepository;
   private final ReleaseParser releaseParser = new ReleaseParser();
 
   @Async("crawlerExecutor")
@@ -84,7 +88,11 @@ public class CrawlingServiceImpl implements CrawlingService {
         }
 
         GithubClient.ReleaseDetails releaseDetails = releaseDetailsOpt.get();
-        String translatedContent = aiTranslationService.translateToKorean(releaseDetails.content());
+        TranslationResult translationResult = aiTranslationService.translateWithStatus(
+            releaseDetails.content());
+        String translatedContent = translationResult.status() == TranslationResult.Status.SUCCESS
+            ? translationResult.content()
+            : null;
         ReleaseRecord record = releaseRecordRepository.save(
             ReleaseRecord.builder()
                 .techStack(techStack)
@@ -119,6 +127,11 @@ public class CrawlingServiceImpl implements CrawlingService {
                     releaseDetails.htmlUrl(),
                     eventTags)));
 
+        if (translationResult.status() != TranslationResult.Status.SUCCESS
+            && translationResult.status() != TranslationResult.Status.SKIPPED_EMPTY) {
+          enqueueTranslationBacklog(record, releaseDetails.htmlUrl(), translationResult);
+        }
+
         log.info("릴리즈 크롤링 성공 techStack={} version={} title={}", techStackName, version, record.getTitle());
 
         lastProcessedVersion = version;
@@ -133,5 +146,22 @@ public class CrawlingServiceImpl implements CrawlingService {
     } catch (Exception ex) {
       log.error("크롤링 실패 techStack={}", techStackName, ex);
     }
+  }
+
+  private void enqueueTranslationBacklog(
+      ReleaseRecord record,
+      String sourceUrl,
+      TranslationResult result) {
+    if (translationBacklogRepository.existsByReleaseRecordId(record.getId())) {
+      return;
+    }
+    translationBacklogRepository.save(
+        TranslationBacklog.builder()
+            .releaseRecord(record)
+            .status(TranslationBacklogStatus.PENDING)
+            .retryCount(0)
+            .lastError(result.error())
+            .sourceUrl(sourceUrl)
+            .build());
   }
 }
