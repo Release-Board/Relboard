@@ -5,7 +5,9 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
+import io.relboard.crawler.translation.domain.BatchInsightResult;
 import io.relboard.crawler.translation.domain.BatchTranslationResult;
+import io.relboard.crawler.translation.domain.InsightPayload;
 import io.relboard.crawler.translation.domain.TranslationBacklog;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -114,6 +116,82 @@ public class AiTranslationService {
     }
   }
 
+  public BatchInsightResult extractInsightsBatch(List<TranslationBacklog> backlogs) {
+    long startNs = System.nanoTime();
+    if (backlogs == null || backlogs.isEmpty()) {
+      log.trace("AI insight batch skipped: empty batch");
+      return BatchInsightResult.success(Map.of());
+    }
+    if (apiKey == null || apiKey.isBlank()) {
+      log.warn("GEMINI_API_KEY is not set. Skip insight extraction.");
+      return BatchInsightResult.skippedNoKey();
+    }
+    GateResult gateResult = acquireQuotaSlot();
+    if (gateResult != GateResult.OK) {
+      return gateResult == GateResult.QUOTA_EXCEEDED
+          ? BatchInsightResult.skippedQuota()
+          : BatchInsightResult.failed("interrupted");
+    }
+
+    try {
+      List<Map<String, Object>> payload =
+          backlogs.stream()
+              .map(
+                  backlog ->
+                      Map.<String, Object>of(
+                          "id", backlog.getId(),
+                          "content", backlog.getReleaseRecord().getContent()))
+              .toList();
+      String payloadJson = objectMapper.writeValueAsString(payload);
+      String prompt = buildInsightPrompt(payloadJson);
+
+      long requestStartNs = System.nanoTime();
+      String response =
+          GoogleAiGeminiChatModel.builder().apiKey(apiKey).modelName(model).build().chat(prompt);
+      long requestMs = (System.nanoTime() - requestStartNs) / 1_000_000L;
+      log.trace(
+          "AI insight batch request completed size={} elapsedMs={}", backlogs.size(), requestMs);
+
+      String json = extractJsonArray(response);
+      if (json == null) {
+        return BatchInsightResult.failed("invalid json response");
+      }
+
+      List<InsightItemResponse> items = parseInsightItems(json);
+      Map<Long, InsightPayload> insights = new HashMap<>();
+      Set<Long> expectedIds = new HashSet<>();
+      for (TranslationBacklog backlog : backlogs) {
+        expectedIds.add(backlog.getId());
+      }
+      for (InsightItemResponse item : items) {
+        if (item == null || item.id() == null || item.shortSummary() == null) {
+          log.warn("AI insight response contains invalid item. Skip.");
+          continue;
+        }
+        if (!expectedIds.contains(item.id())) {
+          log.warn("AI insight response contains unexpected id. Skip id={}", item.id());
+          continue;
+        }
+        insights.put(
+            item.id(),
+            new InsightPayload(
+                item.shortSummary(),
+                item.insights(),
+                item.migrationGuide(),
+                item.technicalKeywords()));
+      }
+      if (insights.isEmpty()) {
+        return BatchInsightResult.failed("no valid insights");
+      }
+      long totalMs = (System.nanoTime() - startNs) / 1_000_000L;
+      log.trace("AI insight batch finished size={} elapsedMs={}", backlogs.size(), totalMs);
+      return BatchInsightResult.success(insights);
+    } catch (Exception ex) {
+      log.error("[AI Insight Fail] {}", ex.getMessage());
+      return BatchInsightResult.failed(ex.getMessage());
+    }
+  }
+
   private GateResult acquireQuotaSlot() {
     synchronized (rateLock) {
       LocalDate today = LocalDate.now(ZoneOffset.UTC);
@@ -159,6 +237,29 @@ public class AiTranslationService {
         payloadJson);
   }
 
+  private String buildInsightPrompt(String payloadJson) {
+    return String.join(
+        "\n",
+        "너는 10년 차 시니어 풀스택 개발자이자 기술 블로그 에디터다.",
+        "규칙:",
+        "- 출력은 반드시 JSON 배열만 반환하고 다른 텍스트를 포함하지 말 것.",
+        "- shortSummary는 개발자가 얻는 이득 중심으로 작성.",
+        "- insights.type은 BREAKING/SECURITY/FEATURE/PERFORMANCE/FIX 중 하나.",
+        "- reason은 본문 근거 기반으로 작성.",
+        "- BREAKING이 있으면 migrationGuide를 반드시 채움.",
+        "  - 가능하면 before/after 코드 제공.",
+        "  - 불명확하면 checklist 1줄 가이드로 대체.",
+        "- technicalKeywords는 5개 내외, 소문자, 중복 금지.",
+        "",
+        "응답 형식:",
+        "[{\"id\": <id>, \"shortSummary\": \"...\", \"insights\": [{\"type\":\"BREAKING\",\"title\":\"...\",\"reason\":\"...\"}],",
+        "\"migrationGuide\": {\"description\":\"...\",\"code\":{\"before\":\"...\",\"after\":\"...\"},\"checklist\":\"...\"},",
+        "\"technicalKeywords\": [\"...\"]}]",
+        "",
+        "JSON 배열:",
+        payloadJson);
+  }
+
   private String extractJsonArray(String text) {
     if (text == null) {
       return null;
@@ -181,6 +282,49 @@ public class AiTranslationService {
         throw ex;
       }
       return parseItemsLenient(recovered);
+    }
+  }
+
+  private List<InsightItemResponse> parseInsightItems(String json) throws JsonProcessingException {
+    try {
+      return objectMapper.readValue(json, new TypeReference<List<InsightItemResponse>>() {});
+    } catch (JsonProcessingException ex) {
+      log.error("[AI Insight Fail] json parse error: {}", ex.getMessage());
+      String recovered = recoverJsonArray(json);
+      if (recovered == null) {
+        throw ex;
+      }
+      return parseInsightItemsLenient(recovered);
+    }
+  }
+
+  private List<InsightItemResponse> parseInsightItemsLenient(String json)
+      throws JsonProcessingException {
+    List<InsightItemResponse> items = new ArrayList<>();
+    try (var parser = objectMapper.getFactory().createParser(json)) {
+      if (parser.nextToken() != JsonToken.START_ARRAY) {
+        return items;
+      }
+      while (parser.nextToken() == JsonToken.START_OBJECT) {
+        try {
+          InsightItemResponse item = objectMapper.readValue(parser, InsightItemResponse.class);
+          items.add(item);
+        } catch (Exception ex) {
+          log.warn(
+              "AI insight response partial parse stopped size={} reason={}",
+              items.size(),
+              ex.getMessage());
+          break;
+        }
+      }
+      if (!items.isEmpty()) {
+        log.warn("AI insight response partial parse succeeded size={}", items.size());
+      }
+      return items;
+    } catch (JsonProcessingException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      throw new JsonProcessingException(ex.getMessage(), ex) {};
     }
   }
 
@@ -230,4 +374,11 @@ public class AiTranslationService {
   }
 
   private record TranslationItem(Long id, String translated) {}
+
+  private record InsightItemResponse(
+      Long id,
+      String shortSummary,
+      List<InsightPayload.InsightItem> insights,
+      InsightPayload.MigrationGuide migrationGuide,
+      List<String> technicalKeywords) {}
 }

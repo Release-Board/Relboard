@@ -1,12 +1,17 @@
 package io.relboard.crawler.translation.scheduler;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.relboard.crawler.infra.kafka.KafkaProducer;
 import io.relboard.crawler.release.domain.ReleaseRecord;
 import io.relboard.crawler.release.event.ReleaseEvent;
 import io.relboard.crawler.translation.application.AiTranslationService;
+import io.relboard.crawler.translation.domain.BatchInsightResult;
 import io.relboard.crawler.translation.domain.BatchTranslationResult;
+import io.relboard.crawler.translation.domain.InsightPayload;
 import io.relboard.crawler.translation.domain.TranslationBacklog;
 import io.relboard.crawler.translation.domain.TranslationBacklogStatus;
+import io.relboard.crawler.release.repository.ReleaseRecordRepository;
 import io.relboard.crawler.translation.repository.TranslationBacklogRepository;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,8 +35,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class TranslationBacklogScheduler {
 
   private final TranslationBacklogRepository translationBacklogRepository;
+  private final ReleaseRecordRepository releaseRecordRepository;
   private final AiTranslationService aiTranslationService;
   private final KafkaProducer kafkaProducer;
+  private final ObjectMapper objectMapper;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private Instant lastBatchRunAt = Instant.EPOCH;
 
@@ -75,29 +82,88 @@ public class TranslationBacklogScheduler {
         return;
       }
 
-      BatchTranslationResult result = aiTranslationService.translateBatch(batch);
-      lastBatchRunAt = now;
+      List<TranslationBacklog> translateTargets =
+          batch.stream()
+              .filter(item -> item.getReleaseRecord().getContentKo() == null)
+              .toList();
 
-      if (result.status() == BatchTranslationResult.Status.SKIPPED_QUOTA
-          || result.status() == BatchTranslationResult.Status.SKIPPED_NO_KEY) {
-        log.info("번역 백로그 처리 중단 status={}", result.status());
-        return;
+      if (!translateTargets.isEmpty()) {
+        BatchTranslationResult result = aiTranslationService.translateBatch(translateTargets);
+        lastBatchRunAt = now;
+
+        if (result.status() == BatchTranslationResult.Status.SKIPPED_QUOTA
+            || result.status() == BatchTranslationResult.Status.SKIPPED_NO_KEY) {
+          log.info("번역 백로그 처리 중단 status={}", result.status());
+          return;
+        }
+
+        if (result.status() != BatchTranslationResult.Status.SUCCESS) {
+          handleBatchFailure(translateTargets, result.error());
+          return;
+        }
+
+        Map<Long, String> translations = result.translations();
+        for (TranslationBacklog backlog : translateTargets) {
+          String translated = translations.get(backlog.getId());
+          if (translated == null) {
+            backlog.recordFailure("missing translated content", 3);
+            continue;
+          }
+          ReleaseRecord record = backlog.getReleaseRecord();
+          record.applyTranslation(translated);
+          releaseRecordRepository.save(record);
+        }
       }
 
-      if (result.status() != BatchTranslationResult.Status.SUCCESS) {
-        handleBatchFailure(batch, result.error());
-        return;
+      List<TranslationBacklog> insightTargets =
+          batch.stream()
+              .filter(item -> item.getReleaseRecord().getShortSummary() == null)
+              .toList();
+
+      if (!insightTargets.isEmpty()) {
+        BatchInsightResult insightResult = aiTranslationService.extractInsightsBatch(insightTargets);
+        lastBatchRunAt = now;
+
+        if (insightResult.status() == BatchInsightResult.Status.SKIPPED_QUOTA
+            || insightResult.status() == BatchInsightResult.Status.SKIPPED_NO_KEY) {
+          log.info("인사이트 백로그 처리 중단 status={}", insightResult.status());
+          return;
+        }
+
+        if (insightResult.status() != BatchInsightResult.Status.SUCCESS) {
+          handleBatchFailure(insightTargets, insightResult.error());
+          return;
+        }
+
+        Map<Long, InsightPayload> insightsMap = insightResult.insights();
+        for (TranslationBacklog backlog : insightTargets) {
+          InsightPayload payload = insightsMap.get(backlog.getId());
+          if (payload == null || payload.shortSummary() == null) {
+            backlog.recordFailure("missing insight payload", 3);
+            continue;
+          }
+          ReleaseRecord record = backlog.getReleaseRecord();
+          record.applyInsights(
+              payload.shortSummary(),
+              serialize(payload.insights()),
+              serialize(payload.migrationGuide()),
+              serialize(payload.technicalKeywords()));
+          releaseRecordRepository.save(record);
+        }
       }
 
-      Map<Long, String> translations = result.translations();
       for (TranslationBacklog backlog : batch) {
-        String translated = translations.get(backlog.getId());
-        if (translated == null) {
+        ReleaseRecord record = backlog.getReleaseRecord();
+        if (record.getContentKo() == null) {
           backlog.recordFailure("missing translated content", 3);
           continue;
         }
-        ReleaseRecord record = backlog.getReleaseRecord();
-        publishTranslation(record, backlog.getSourceUrl(), translated);
+        if (record.getShortSummary() == null) {
+          backlog.recordFailure("missing insight payload", 3);
+          continue;
+        }
+        InsightPayload insightPayload = parseInsightPayload(record);
+        publishTranslation(record, backlog, insightPayload);
         backlog.markDone();
       }
     } finally {
@@ -111,11 +177,32 @@ public class TranslationBacklogScheduler {
     }
   }
 
-  private void publishTranslation(ReleaseRecord record, String sourceUrl, String contentKo) {
+  private void publishTranslation(
+      ReleaseRecord record, TranslationBacklog backlog, InsightPayload insightPayload) {
     LocalDateTime publishedAt =
         record.getPublishedAt() != null
             ? LocalDateTime.ofInstant(record.getPublishedAt(), ZoneId.of("Asia/Seoul"))
             : null;
+    List<ReleaseEvent.Insight> insightItems =
+        insightPayload == null || insightPayload.insights() == null
+            ? List.of()
+            : insightPayload.insights().stream()
+                .map(item -> new ReleaseEvent.Insight(item.type(), item.title(), item.reason()))
+                .toList();
+    ReleaseEvent.MigrationGuide migrationGuide = null;
+    if (insightPayload != null && insightPayload.migrationGuide() != null) {
+      InsightPayload.MigrationGuide source = insightPayload.migrationGuide();
+      ReleaseEvent.MigrationGuideCode code =
+          source.code() == null
+              ? null
+              : new ReleaseEvent.MigrationGuideCode(
+                  source.code().before(), source.code().after());
+      migrationGuide = new ReleaseEvent.MigrationGuide(source.description(), code, source.checklist());
+    }
+    List<String> keywords =
+        insightPayload == null || insightPayload.technicalKeywords() == null
+            ? List.of()
+            : insightPayload.technicalKeywords();
     kafkaProducer.sendReleaseEvent(
         new ReleaseEvent(
             UUID.randomUUID().toString(),
@@ -125,9 +212,52 @@ public class TranslationBacklogScheduler {
                 record.getVersion(),
                 record.getTitle(),
                 record.getContent(),
-                contentKo,
+                record.getContentKo(),
+                insightPayload != null ? insightPayload.shortSummary() : null,
+                insightItems,
+                migrationGuide,
+                keywords,
                 publishedAt,
-                sourceUrl,
+                backlog.getSourceUrl(),
                 List.of())));
+  }
+
+  private String serialize(Object value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      return objectMapper.writeValueAsString(value);
+    } catch (Exception ex) {
+      log.warn("인사이트 직렬화 실패: {}", ex.getMessage());
+      return null;
+    }
+  }
+
+  private InsightPayload parseInsightPayload(ReleaseRecord record) {
+    if (record.getShortSummary() == null) {
+      return null;
+    }
+    try {
+      List<InsightPayload.InsightItem> insights =
+          record.getInsights() == null
+              ? List.of()
+              : objectMapper.readValue(
+                  record.getInsights(), new TypeReference<List<InsightPayload.InsightItem>>() {});
+      InsightPayload.MigrationGuide migrationGuide =
+          record.getMigrationGuide() == null
+              ? null
+              : objectMapper.readValue(
+                  record.getMigrationGuide(), InsightPayload.MigrationGuide.class);
+      List<String> keywords =
+          record.getTechnicalKeywords() == null
+              ? List.of()
+              : objectMapper.readValue(
+                  record.getTechnicalKeywords(), new TypeReference<List<String>>() {});
+      return new InsightPayload(record.getShortSummary(), insights, migrationGuide, keywords);
+    } catch (Exception ex) {
+      log.warn("인사이트 파싱 실패 id={} reason={}", record.getId(), ex.getMessage());
+      return new InsightPayload(record.getShortSummary(), List.of(), null, List.of());
+    }
   }
 }

@@ -10,9 +10,19 @@ public record ReleaseEvent(String eventId, LocalDateTime occurredAt, Payload pay
       String title,
       String content,
       String contentKo,
+      String shortSummary,
+      List<Insight> insights,
+      MigrationGuide migrationGuide,
+      List<String> technicalKeywords,
       LocalDateTime publishedAt,
       String sourceUrl,
       List<Tag> tags) {}
 
   public record Tag(String type, String reason) {}
+
+  public record Insight(String type, String title, String reason) {}
+
+  public record MigrationGuide(String description, MigrationGuideCode code, String checklist) {}
+
+  public record MigrationGuideCode(String before, String after) {}
 }

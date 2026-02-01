@@ -17,6 +17,6 @@ ai:
 translation:
   backlog:
     cron: ${TRANSLATION_BACKLOG_CRON:0 */5 * * * *}
-    batch-size: ${TRANSLATION_BACKLOG_BATCH_SIZE:50}
-    min-pending: ${TRANSLATION_BACKLOG_MIN_PENDING:50}
+    batch-size: ${TRANSLATION_BACKLOG_BATCH_SIZE:25}
+    min-pending: ${TRANSLATION_BACKLOG_MIN_PENDING:25}
     min-interval-minutes: ${TRANSLATION_BACKLOG_MIN_INTERVAL_MINUTES:60}

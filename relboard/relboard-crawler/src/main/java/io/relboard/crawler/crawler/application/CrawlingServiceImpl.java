@@ -127,6 +127,10 @@ public class CrawlingServiceImpl implements CrawlingService {
                     record.getTitle(),
                     record.getContent(),
                     null,
+                    null,
+                    List.of(),
+                    null,
+                    List.of(),
                     publishedAt,
                     releaseDetails.htmlUrl(),
                     eventTags)));

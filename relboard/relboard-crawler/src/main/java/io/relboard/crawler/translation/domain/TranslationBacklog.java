@@ -88,4 +88,5 @@ public class TranslationBacklog extends BaseEntity {
             ? TranslationBacklogStatus.FAILED
             : TranslationBacklogStatus.PENDING;
   }
+
 }
