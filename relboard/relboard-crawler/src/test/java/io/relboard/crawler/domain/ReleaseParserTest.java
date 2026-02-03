@@ -2,6 +2,8 @@ package io.relboard.crawler.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.relboard.crawler.release.domain.ReleaseParser;
+import io.relboard.crawler.release.domain.ReleaseTagType;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 

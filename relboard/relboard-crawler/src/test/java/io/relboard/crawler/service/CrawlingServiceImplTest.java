@@ -7,18 +7,19 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.relboard.crawler.client.GithubClient;
-import io.relboard.crawler.client.MavenClient;
-import io.relboard.crawler.domain.ReleaseRecord;
-import io.relboard.crawler.domain.TechStack;
-import io.relboard.crawler.domain.TechStackSource;
-import io.relboard.crawler.domain.TechStackSourceType;
-import io.relboard.crawler.repository.ReleaseRecordRepository;
-import io.relboard.crawler.repository.ReleaseTagRepository;
-import io.relboard.crawler.repository.TechStackRepository;
-import io.relboard.crawler.repository.TechStackSourceRepository;
-import io.relboard.crawler.service.implementation.CrawlingServiceImpl;
-import io.relboard.crawler.service.implementation.KafkaProducerService;
+import io.relboard.crawler.crawler.application.CrawlingServiceImpl;
+import io.relboard.crawler.infra.client.GithubClient;
+import io.relboard.crawler.infra.client.MavenClient;
+import io.relboard.crawler.infra.kafka.KafkaProducer;
+import io.relboard.crawler.release.domain.ReleaseRecord;
+import io.relboard.crawler.release.repository.ReleaseRecordRepository;
+import io.relboard.crawler.release.repository.ReleaseTagRepository;
+import io.relboard.crawler.techstack.domain.TechStack;
+import io.relboard.crawler.techstack.domain.TechStackSource;
+import io.relboard.crawler.techstack.domain.TechStackSourceType;
+import io.relboard.crawler.techstack.repository.TechStackRepository;
+import io.relboard.crawler.techstack.repository.TechStackSourceRepository;
+import io.relboard.crawler.translation.repository.TranslationBacklogRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -37,7 +38,8 @@ class CrawlingServiceImplTest {
   @Mock private ReleaseTagRepository releaseTagRepository;
   @Mock private MavenClient mavenClient;
   @Mock private GithubClient githubClient;
-  @Mock private KafkaProducerService kafkaProducerService;
+  @Mock private KafkaProducer kafkaProducer;
+  @Mock private TranslationBacklogRepository translationBacklogRepository;
 
   private CrawlingServiceImpl crawlingService;
 
@@ -51,7 +53,8 @@ class CrawlingServiceImplTest {
             releaseTagRepository,
             mavenClient,
             githubClient,
-            kafkaProducerService);
+            kafkaProducer,
+            translationBacklogRepository);
   }
 
   @Test
