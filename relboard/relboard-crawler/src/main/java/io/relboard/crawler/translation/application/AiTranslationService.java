@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import io.relboard.crawler.translation.domain.BatchInsightResult;
 import io.relboard.crawler.translation.domain.BatchTranslationResult;
+import io.relboard.crawler.translation.domain.AiRequestLog;
+import io.relboard.crawler.translation.domain.AiRequestStatus;
+import io.relboard.crawler.translation.domain.AiRequestType;
 import io.relboard.crawler.translation.domain.InsightPayload;
 import io.relboard.crawler.translation.domain.TranslationBacklog;
 import java.time.LocalDate;
@@ -28,6 +31,7 @@ import org.springframework.stereotype.Service;
 public class AiTranslationService {
 
   private final ObjectMapper objectMapper;
+  private final AiRequestLogService aiRequestLogService;
 
   @Value("${ai.gemini.api-key:}")
   private String apiKey;
@@ -45,6 +49,7 @@ public class AiTranslationService {
   private long lastRequestAt = 0L;
   private int requestCountToday = 0;
   private LocalDate requestDate = LocalDate.now(ZoneOffset.UTC);
+  private static final String PROVIDER = "GEMINI";
 
   public BatchTranslationResult translateBatch(List<TranslationBacklog> backlogs) {
     long startNs = System.nanoTime();
@@ -54,15 +59,24 @@ public class AiTranslationService {
     }
     if (apiKey == null || apiKey.isBlank()) {
       log.warn("GEMINI_API_KEY is not set. Skip translation.");
+      recordSkip(AiRequestType.TRANSLATE, backlogs.size(), 0, AiRequestStatus.SKIPPED_NO_KEY);
       return BatchTranslationResult.skippedNoKey();
     }
     GateResult gateResult = acquireQuotaSlot();
     if (gateResult != GateResult.OK) {
+      recordSkip(
+          AiRequestType.TRANSLATE,
+          backlogs.size(),
+          0,
+          gateResult == GateResult.QUOTA_EXCEEDED
+              ? AiRequestStatus.SKIPPED_QUOTA
+              : AiRequestStatus.FAILED);
       return gateResult == GateResult.QUOTA_EXCEEDED
           ? BatchTranslationResult.skippedQuota()
           : BatchTranslationResult.failed("interrupted");
     }
 
+    AiRequestLog requestLog = null;
     try {
       List<Map<String, Object>> payload =
           backlogs.stream()
@@ -74,6 +88,14 @@ public class AiTranslationService {
               .toList();
       String payloadJson = objectMapper.writeValueAsString(payload);
       String prompt = buildBatchPrompt(payloadJson);
+      requestLog =
+          aiRequestLogService.create(
+              PROVIDER,
+              model,
+              AiRequestType.TRANSLATE,
+              backlogs.size(),
+              payloadJson.length(),
+              0);
 
       long requestStartNs = System.nanoTime();
       String response =
@@ -84,6 +106,9 @@ public class AiTranslationService {
 
       String json = extractJsonArray(response);
       if (json == null) {
+        aiRequestLogService.complete(
+            requestLog, AiRequestStatus.FAILED, (int) requestMs, response.length(),
+            "invalid json response");
         return BatchTranslationResult.failed("invalid json response");
       }
 
@@ -105,13 +130,19 @@ public class AiTranslationService {
         translations.put(item.id(), item.translated().trim());
       }
       if (translations.isEmpty()) {
+        aiRequestLogService.complete(
+            requestLog, AiRequestStatus.FAILED, (int) requestMs, response.length(),
+            "no valid translations");
         return BatchTranslationResult.failed("no valid translations");
       }
+      aiRequestLogService.complete(
+          requestLog, AiRequestStatus.SUCCESS, (int) requestMs, response.length(), null);
       long totalMs = (System.nanoTime() - startNs) / 1_000_000L;
       log.trace("AI batch translate finished size={} elapsedMs={}", backlogs.size(), totalMs);
       return BatchTranslationResult.success(translations);
     } catch (Exception ex) {
       log.error("[AI Translation Fail] {}", ex.getMessage());
+      aiRequestLogService.complete(requestLog, AiRequestStatus.FAILED, 0, 0, ex.getMessage());
       return BatchTranslationResult.failed(ex.getMessage());
     }
   }
@@ -124,15 +155,24 @@ public class AiTranslationService {
     }
     if (apiKey == null || apiKey.isBlank()) {
       log.warn("GEMINI_API_KEY is not set. Skip insight extraction.");
+      recordSkip(AiRequestType.INSIGHT, backlogs.size(), 0, AiRequestStatus.SKIPPED_NO_KEY);
       return BatchInsightResult.skippedNoKey();
     }
     GateResult gateResult = acquireQuotaSlot();
     if (gateResult != GateResult.OK) {
+      recordSkip(
+          AiRequestType.INSIGHT,
+          backlogs.size(),
+          0,
+          gateResult == GateResult.QUOTA_EXCEEDED
+              ? AiRequestStatus.SKIPPED_QUOTA
+              : AiRequestStatus.FAILED);
       return gateResult == GateResult.QUOTA_EXCEEDED
           ? BatchInsightResult.skippedQuota()
           : BatchInsightResult.failed("interrupted");
     }
 
+    AiRequestLog requestLog = null;
     try {
       List<Map<String, Object>> payload =
           backlogs.stream()
@@ -144,6 +184,14 @@ public class AiTranslationService {
               .toList();
       String payloadJson = objectMapper.writeValueAsString(payload);
       String prompt = buildInsightPrompt(payloadJson);
+      requestLog =
+          aiRequestLogService.create(
+              PROVIDER,
+              model,
+              AiRequestType.INSIGHT,
+              backlogs.size(),
+              payloadJson.length(),
+              0);
 
       long requestStartNs = System.nanoTime();
       String response =
@@ -154,6 +202,9 @@ public class AiTranslationService {
 
       String json = extractJsonArray(response);
       if (json == null) {
+        aiRequestLogService.complete(
+            requestLog, AiRequestStatus.FAILED, (int) requestMs, response.length(),
+            "invalid json response");
         return BatchInsightResult.failed("invalid json response");
       }
 
@@ -181,13 +232,19 @@ public class AiTranslationService {
                 item.technicalKeywords()));
       }
       if (insights.isEmpty()) {
+        aiRequestLogService.complete(
+            requestLog, AiRequestStatus.FAILED, (int) requestMs, response.length(),
+            "no valid insights");
         return BatchInsightResult.failed("no valid insights");
       }
+      aiRequestLogService.complete(
+          requestLog, AiRequestStatus.SUCCESS, (int) requestMs, response.length(), null);
       long totalMs = (System.nanoTime() - startNs) / 1_000_000L;
       log.trace("AI insight batch finished size={} elapsedMs={}", backlogs.size(), totalMs);
       return BatchInsightResult.success(insights);
     } catch (Exception ex) {
       log.error("[AI Insight Fail] {}", ex.getMessage());
+      aiRequestLogService.complete(requestLog, AiRequestStatus.FAILED, 0, 0, ex.getMessage());
       return BatchInsightResult.failed(ex.getMessage());
     }
   }
@@ -258,6 +315,13 @@ public class AiTranslationService {
         "",
         "JSON 배열:",
         payloadJson);
+  }
+
+  private void recordSkip(
+      AiRequestType type, int batchSize, int inputChars, AiRequestStatus status) {
+    AiRequestLog log =
+        aiRequestLogService.create(PROVIDER, model, type, batchSize, inputChars, 0);
+    aiRequestLogService.complete(log, status, 0, 0, status.name());
   }
 
   private String extractJsonArray(String text) {
