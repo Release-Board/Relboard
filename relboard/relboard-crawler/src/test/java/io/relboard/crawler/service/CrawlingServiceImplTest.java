@@ -10,12 +10,14 @@ import static org.mockito.Mockito.when;
 import io.relboard.crawler.crawler.application.CrawlingServiceImpl;
 import io.relboard.crawler.infra.client.GithubClient;
 import io.relboard.crawler.infra.client.MavenClient;
+import io.relboard.crawler.infra.client.NpmClient;
 import io.relboard.crawler.infra.kafka.KafkaProducer;
 import io.relboard.crawler.release.domain.ReleaseRecord;
 import io.relboard.crawler.release.repository.ReleaseRecordRepository;
 import io.relboard.crawler.release.repository.ReleaseTagRepository;
 import io.relboard.crawler.techstack.domain.TechStack;
 import io.relboard.crawler.techstack.domain.TechStackSource;
+import io.relboard.crawler.techstack.domain.TechStackSourceMetadata;
 import io.relboard.crawler.techstack.domain.TechStackSourceType;
 import io.relboard.crawler.techstack.repository.TechStackRepository;
 import io.relboard.crawler.techstack.repository.TechStackSourceRepository;
@@ -37,6 +39,7 @@ class CrawlingServiceImplTest {
   @Mock private ReleaseRecordRepository releaseRecordRepository;
   @Mock private ReleaseTagRepository releaseTagRepository;
   @Mock private MavenClient mavenClient;
+  @Mock private NpmClient npmClient;
   @Mock private GithubClient githubClient;
   @Mock private KafkaProducer kafkaProducer;
   @Mock private TranslationBacklogRepository translationBacklogRepository;
@@ -52,6 +55,7 @@ class CrawlingServiceImplTest {
             releaseRecordRepository,
             releaseTagRepository,
             mavenClient,
+            npmClient,
             githubClient,
             kafkaProducer,
             translationBacklogRepository);
@@ -66,10 +70,24 @@ class CrawlingServiceImplTest {
             .id(10L)
             .techStack(techStack)
             .type(TechStackSourceType.MAVEN)
-            .mavenGroupId("org.example")
-            .mavenArtifactId("app")
-            .githubOwner("owner")
-            .githubRepo("repo")
+            .metadata(
+                List.of(
+                    TechStackSourceMetadata.builder()
+                        .key("maven_group_id")
+                        .value("org.example")
+                        .build(),
+                    TechStackSourceMetadata.builder()
+                        .key("maven_artifact_id")
+                        .value("app")
+                        .build(),
+                    TechStackSourceMetadata.builder()
+                        .key("github_owner")
+                        .value("owner")
+                        .build(),
+                    TechStackSourceMetadata.builder()
+                        .key("github_repo")
+                        .value("repo")
+                        .build()))
             .build();
 
     when(techStackSourceRepository.findById(10L)).thenReturn(Optional.of(source));
@@ -92,10 +110,24 @@ class CrawlingServiceImplTest {
             .id(20L)
             .techStack(techStack)
             .type(TechStackSourceType.MAVEN)
-            .mavenGroupId("org.example")
-            .mavenArtifactId("app")
-            .githubOwner("owner")
-            .githubRepo("repo")
+            .metadata(
+                List.of(
+                    TechStackSourceMetadata.builder()
+                        .key("maven_group_id")
+                        .value("org.example")
+                        .build(),
+                    TechStackSourceMetadata.builder()
+                        .key("maven_artifact_id")
+                        .value("app")
+                        .build(),
+                    TechStackSourceMetadata.builder()
+                        .key("github_owner")
+                        .value("owner")
+                        .build(),
+                    TechStackSourceMetadata.builder()
+                        .key("github_repo")
+                        .value("repo")
+                        .build()))
             .build();
 
     when(techStackSourceRepository.findById(20L)).thenReturn(Optional.of(source));

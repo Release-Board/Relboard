@@ -32,4 +32,10 @@ public class RestClientConfig {
   public RestClient mavenRestClient(RestClient.Builder builder) {
     return builder.build();
   }
+
+  @Bean
+  @Qualifier("npmRestClient")
+  public RestClient npmRestClient(RestClient.Builder builder) {
+    return builder.baseUrl("https://registry.npmjs.org").build();
+  }
 }

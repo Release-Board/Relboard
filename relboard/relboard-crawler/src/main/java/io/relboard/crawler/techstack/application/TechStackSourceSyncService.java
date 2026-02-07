@@ -4,10 +4,14 @@ import io.relboard.crawler.infra.client.RelboardServiceClient;
 import io.relboard.crawler.infra.client.dto.TechStackSourceSyncResponse;
 import io.relboard.crawler.techstack.domain.TechStack;
 import io.relboard.crawler.techstack.domain.TechStackSource;
+import io.relboard.crawler.techstack.domain.TechStackSourceMetadata;
 import io.relboard.crawler.techstack.domain.TechStackSourceType;
 import io.relboard.crawler.techstack.repository.TechStackRepository;
 import io.relboard.crawler.techstack.repository.TechStackSourceRepository;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -67,16 +71,12 @@ public class TechStackSourceSyncService {
     if (type == null) {
       return;
     }
+    List<TechStackSourceMetadata> metadata = buildMetadata(source);
     techStackSourceRepository
         .findByTechStackAndType(techStack, type)
         .ifPresentOrElse(
             existing -> {
-              existing.updateSource(
-                  type,
-                  source.githubOwner(),
-                  source.githubRepo(),
-                  source.mavenGroupId(),
-                  source.mavenArtifactId());
+              existing.updateSource(type, metadata);
               techStackSourceRepository.save(existing);
             },
             () ->
@@ -84,11 +84,33 @@ public class TechStackSourceSyncService {
                     TechStackSource.builder()
                         .techStack(techStack)
                         .type(type)
-                        .githubOwner(source.githubOwner())
-                        .githubRepo(source.githubRepo())
-                        .mavenGroupId(source.mavenGroupId())
-                        .mavenArtifactId(source.mavenArtifactId())
+                        .metadata(metadata)
                         .build()));
+  }
+
+  private List<TechStackSourceMetadata> buildMetadata(TechStackSourceSyncResponse source) {
+    if (source.metadata() == null || source.metadata().isEmpty()) {
+      return List.of();
+    }
+    Map<String, String> deduped =
+        source.metadata().stream()
+            .filter(Objects::nonNull)
+            .filter(item -> item.key() != null && item.value() != null)
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    item -> item.key().trim(),
+                    TechStackSourceSyncResponse.TechStackSourceMetadataResponse::value,
+                    (existing, replacement) -> replacement));
+
+    List<TechStackSourceMetadata> metadata = new ArrayList<>();
+    for (Map.Entry<String, String> entry : deduped.entrySet()) {
+      metadata.add(
+          TechStackSourceMetadata.builder()
+              .key(entry.getKey())
+              .value(entry.getValue())
+              .build());
+    }
+    return metadata;
   }
 
   private TechStackSourceType parseSourceType(String rawType) {
