@@ -28,8 +28,7 @@ public class NpmClient {
       return Optional.empty();
     }
     try {
-      JsonNode root =
-          npmRestClient.get().uri("/" + packageName).retrieve().body(JsonNode.class);
+      JsonNode root = npmRestClient.get().uri("/" + packageName).retrieve().body(JsonNode.class);
       if (root == null) {
         return Optional.empty();
       }
@@ -38,9 +37,11 @@ public class NpmClient {
         return Optional.empty();
       }
       Map<String, String> timeMap =
-          objectMapper.convertValue(timeNode, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+          objectMapper.convertValue(
+              timeNode, new com.fasterxml.jackson.core.type.TypeReference<>() {});
       List<Map.Entry<String, String>> entries = new ArrayList<>(timeMap.entrySet());
-      entries.removeIf(entry -> "created".equals(entry.getKey()) || "modified".equals(entry.getKey()));
+      entries.removeIf(
+          entry -> "created".equals(entry.getKey()) || "modified".equals(entry.getKey()));
       entries.sort(Comparator.comparing(Map.Entry::getValue));
       List<String> versions = new ArrayList<>();
       for (Map.Entry<String, String> entry : entries) {

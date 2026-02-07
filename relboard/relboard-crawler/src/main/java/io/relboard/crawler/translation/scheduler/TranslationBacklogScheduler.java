@@ -5,13 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.relboard.crawler.infra.kafka.KafkaProducer;
 import io.relboard.crawler.release.domain.ReleaseRecord;
 import io.relboard.crawler.release.event.ReleaseEvent;
+import io.relboard.crawler.release.repository.ReleaseRecordRepository;
 import io.relboard.crawler.translation.application.AiTranslationService;
 import io.relboard.crawler.translation.domain.BatchInsightResult;
 import io.relboard.crawler.translation.domain.BatchTranslationResult;
 import io.relboard.crawler.translation.domain.InsightPayload;
 import io.relboard.crawler.translation.domain.TranslationBacklog;
 import io.relboard.crawler.translation.domain.TranslationBacklogStatus;
-import io.relboard.crawler.release.repository.ReleaseRecordRepository;
 import io.relboard.crawler.translation.repository.TranslationBacklogRepository;
 import java.time.Duration;
 import java.time.Instant;
@@ -83,9 +83,7 @@ public class TranslationBacklogScheduler {
       }
 
       List<TranslationBacklog> translateTargets =
-          batch.stream()
-              .filter(item -> item.getReleaseRecord().getContentKo() == null)
-              .toList();
+          batch.stream().filter(item -> item.getReleaseRecord().getContentKo() == null).toList();
 
       if (!translateTargets.isEmpty()) {
         BatchTranslationResult result = aiTranslationService.translateBatch(translateTargets);
@@ -116,12 +114,11 @@ public class TranslationBacklogScheduler {
       }
 
       List<TranslationBacklog> insightTargets =
-          batch.stream()
-              .filter(item -> item.getReleaseRecord().getShortSummary() == null)
-              .toList();
+          batch.stream().filter(item -> item.getReleaseRecord().getShortSummary() == null).toList();
 
       if (!insightTargets.isEmpty()) {
-        BatchInsightResult insightResult = aiTranslationService.extractInsightsBatch(insightTargets);
+        BatchInsightResult insightResult =
+            aiTranslationService.extractInsightsBatch(insightTargets);
         lastBatchRunAt = now;
 
         if (insightResult.status() == BatchInsightResult.Status.SKIPPED_QUOTA
@@ -195,9 +192,9 @@ public class TranslationBacklogScheduler {
       ReleaseEvent.MigrationGuideCode code =
           source.code() == null
               ? null
-              : new ReleaseEvent.MigrationGuideCode(
-                  source.code().before(), source.code().after());
-      migrationGuide = new ReleaseEvent.MigrationGuide(source.description(), code, source.checklist());
+              : new ReleaseEvent.MigrationGuideCode(source.code().before(), source.code().after());
+      migrationGuide =
+          new ReleaseEvent.MigrationGuide(source.description(), code, source.checklist());
     }
     List<String> keywords =
         insightPayload == null || insightPayload.technicalKeywords() == null

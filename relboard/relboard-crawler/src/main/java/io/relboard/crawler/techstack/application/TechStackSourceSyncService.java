@@ -105,10 +105,7 @@ public class TechStackSourceSyncService {
     List<TechStackSourceMetadata> metadata = new ArrayList<>();
     for (Map.Entry<String, String> entry : deduped.entrySet()) {
       metadata.add(
-          TechStackSourceMetadata.builder()
-              .key(entry.getKey())
-              .value(entry.getValue())
-              .build());
+          TechStackSourceMetadata.builder().key(entry.getKey()).value(entry.getValue()).build());
     }
     return metadata;
   }

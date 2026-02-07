@@ -5,11 +5,11 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
-import io.relboard.crawler.translation.domain.BatchInsightResult;
-import io.relboard.crawler.translation.domain.BatchTranslationResult;
 import io.relboard.crawler.translation.domain.AiRequestLog;
 import io.relboard.crawler.translation.domain.AiRequestStatus;
 import io.relboard.crawler.translation.domain.AiRequestType;
+import io.relboard.crawler.translation.domain.BatchInsightResult;
+import io.relboard.crawler.translation.domain.BatchTranslationResult;
 import io.relboard.crawler.translation.domain.InsightPayload;
 import io.relboard.crawler.translation.domain.TranslationBacklog;
 import java.time.LocalDate;
@@ -90,12 +90,7 @@ public class AiTranslationService {
       String prompt = buildBatchPrompt(payloadJson);
       requestLog =
           aiRequestLogService.create(
-              PROVIDER,
-              model,
-              AiRequestType.TRANSLATE,
-              backlogs.size(),
-              payloadJson.length(),
-              0);
+              PROVIDER, model, AiRequestType.TRANSLATE, backlogs.size(), payloadJson.length(), 0);
 
       long requestStartNs = System.nanoTime();
       String response =
@@ -107,7 +102,10 @@ public class AiTranslationService {
       String json = extractJsonArray(response);
       if (json == null) {
         aiRequestLogService.complete(
-            requestLog, AiRequestStatus.FAILED, (int) requestMs, response.length(),
+            requestLog,
+            AiRequestStatus.FAILED,
+            (int) requestMs,
+            response.length(),
             "invalid json response");
         return BatchTranslationResult.failed("invalid json response");
       }
@@ -131,7 +129,10 @@ public class AiTranslationService {
       }
       if (translations.isEmpty()) {
         aiRequestLogService.complete(
-            requestLog, AiRequestStatus.FAILED, (int) requestMs, response.length(),
+            requestLog,
+            AiRequestStatus.FAILED,
+            (int) requestMs,
+            response.length(),
             "no valid translations");
         return BatchTranslationResult.failed("no valid translations");
       }
@@ -186,12 +187,7 @@ public class AiTranslationService {
       String prompt = buildInsightPrompt(payloadJson);
       requestLog =
           aiRequestLogService.create(
-              PROVIDER,
-              model,
-              AiRequestType.INSIGHT,
-              backlogs.size(),
-              payloadJson.length(),
-              0);
+              PROVIDER, model, AiRequestType.INSIGHT, backlogs.size(), payloadJson.length(), 0);
 
       long requestStartNs = System.nanoTime();
       String response =
@@ -203,7 +199,10 @@ public class AiTranslationService {
       String json = extractJsonArray(response);
       if (json == null) {
         aiRequestLogService.complete(
-            requestLog, AiRequestStatus.FAILED, (int) requestMs, response.length(),
+            requestLog,
+            AiRequestStatus.FAILED,
+            (int) requestMs,
+            response.length(),
             "invalid json response");
         return BatchInsightResult.failed("invalid json response");
       }
@@ -233,7 +232,10 @@ public class AiTranslationService {
       }
       if (insights.isEmpty()) {
         aiRequestLogService.complete(
-            requestLog, AiRequestStatus.FAILED, (int) requestMs, response.length(),
+            requestLog,
+            AiRequestStatus.FAILED,
+            (int) requestMs,
+            response.length(),
             "no valid insights");
         return BatchInsightResult.failed("no valid insights");
       }
@@ -319,8 +321,7 @@ public class AiTranslationService {
 
   private void recordSkip(
       AiRequestType type, int batchSize, int inputChars, AiRequestStatus status) {
-    AiRequestLog log =
-        aiRequestLogService.create(PROVIDER, model, type, batchSize, inputChars, 0);
+    AiRequestLog log = aiRequestLogService.create(PROVIDER, model, type, batchSize, inputChars, 0);
     aiRequestLogService.complete(log, status, 0, 0, status.name());
   }
 

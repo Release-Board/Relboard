@@ -76,18 +76,9 @@ class CrawlingServiceImplTest {
                         .key("maven_group_id")
                         .value("org.example")
                         .build(),
-                    TechStackSourceMetadata.builder()
-                        .key("maven_artifact_id")
-                        .value("app")
-                        .build(),
-                    TechStackSourceMetadata.builder()
-                        .key("github_owner")
-                        .value("owner")
-                        .build(),
-                    TechStackSourceMetadata.builder()
-                        .key("github_repo")
-                        .value("repo")
-                        .build()))
+                    TechStackSourceMetadata.builder().key("maven_artifact_id").value("app").build(),
+                    TechStackSourceMetadata.builder().key("github_owner").value("owner").build(),
+                    TechStackSourceMetadata.builder().key("github_repo").value("repo").build()))
             .build();
 
     when(techStackSourceRepository.findById(10L)).thenReturn(Optional.of(source));
@@ -116,18 +107,9 @@ class CrawlingServiceImplTest {
                         .key("maven_group_id")
                         .value("org.example")
                         .build(),
-                    TechStackSourceMetadata.builder()
-                        .key("maven_artifact_id")
-                        .value("app")
-                        .build(),
-                    TechStackSourceMetadata.builder()
-                        .key("github_owner")
-                        .value("owner")
-                        .build(),
-                    TechStackSourceMetadata.builder()
-                        .key("github_repo")
-                        .value("repo")
-                        .build()))
+                    TechStackSourceMetadata.builder().key("maven_artifact_id").value("app").build(),
+                    TechStackSourceMetadata.builder().key("github_owner").value("owner").build(),
+                    TechStackSourceMetadata.builder().key("github_repo").value("repo").build()))
             .build();
 
     when(techStackSourceRepository.findById(20L)).thenReturn(Optional.of(source));
