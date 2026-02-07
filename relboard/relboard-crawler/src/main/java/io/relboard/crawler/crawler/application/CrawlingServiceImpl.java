@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,7 +47,6 @@ public class CrawlingServiceImpl implements CrawlingService {
   private final TranslationBacklogRepository translationBacklogRepository;
   private final ReleaseParser releaseParser = new ReleaseParser();
 
-  @Async("crawlerExecutor")
   @Transactional
   @Override
   public void process(Long sourceId) {
@@ -71,18 +69,25 @@ public class CrawlingServiceImpl implements CrawlingService {
       String npmPackageName = source.getMetadataValue("npm_package_name").orElse(null);
 
       Optional<List<String>> versionsOpt = Optional.empty();
-      if (source.getType() == TechStackSourceType.MAVEN) {
-        if (mavenGroupId == null || mavenArtifactId == null) {
-          log.warn("Maven 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
-          return;
+
+      if (githubOwner != null && githubRepo != null) {
+        versionsOpt = githubClient.fetchTags(githubOwner, githubRepo, 30);
+      }
+
+      if (versionsOpt.isEmpty()) {
+        if (source.getType() == TechStackSourceType.MAVEN) {
+          if (mavenGroupId == null || mavenArtifactId == null) {
+            log.warn("Maven 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
+            return;
+          }
+          versionsOpt = mavenClient.fetchVersions(mavenGroupId, mavenArtifactId);
+        } else if (source.getType() == TechStackSourceType.NPM) {
+          if (npmPackageName == null) {
+            log.warn("NPM 패키지 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
+            return;
+          }
+          versionsOpt = npmClient.fetchVersions(npmPackageName);
         }
-        versionsOpt = mavenClient.fetchVersions(mavenGroupId, mavenArtifactId);
-      } else if (source.getType() == TechStackSourceType.NPM) {
-        if (npmPackageName == null) {
-          log.warn("NPM 패키지 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
-          return;
-        }
-        versionsOpt = npmClient.fetchVersions(npmPackageName);
       }
       if (versionsOpt.isEmpty()) {
         log.warn("버전 목록을 찾을 수 없어 크롤링 건너뜀 techStack={}", techStackName);
