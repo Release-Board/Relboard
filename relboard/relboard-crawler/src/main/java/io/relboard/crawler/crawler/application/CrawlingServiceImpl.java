@@ -13,6 +13,7 @@ import io.relboard.crawler.release.repository.ReleaseRecordRepository;
 import io.relboard.crawler.release.repository.ReleaseTagRepository;
 import io.relboard.crawler.techstack.domain.TechStack;
 import io.relboard.crawler.techstack.domain.TechStackSource;
+import io.relboard.crawler.techstack.domain.TechStackSourceType;
 import io.relboard.crawler.techstack.repository.TechStackRepository;
 import io.relboard.crawler.techstack.repository.TechStackSourceRepository;
 import io.relboard.crawler.translation.domain.TranslationBacklog;
@@ -70,14 +71,13 @@ public class CrawlingServiceImpl implements CrawlingService {
       String npmPackageName = source.getMetadataValue("npm_package_name").orElse(null);
 
       Optional<List<String>> versionsOpt = Optional.empty();
-      if (source.getType() == io.relboard.crawler.techstack.domain.TechStackSourceType.MAVEN) {
+      if (source.getType() == TechStackSourceType.MAVEN) {
         if (mavenGroupId == null || mavenArtifactId == null) {
           log.warn("Maven 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
           return;
         }
         versionsOpt = mavenClient.fetchVersions(mavenGroupId, mavenArtifactId);
-      } else if (source.getType()
-          == io.relboard.crawler.techstack.domain.TechStackSourceType.NPM) {
+      } else if (source.getType() == TechStackSourceType.NPM) {
         if (npmPackageName == null) {
           log.warn("NPM 패키지 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
           return;
@@ -117,7 +117,7 @@ public class CrawlingServiceImpl implements CrawlingService {
           content = releaseDetails.content();
           publishedAt = releaseDetails.publishedAt();
           sourceUrl = releaseDetails.htmlUrl();
-        } else if (source.getType() == io.relboard.crawler.techstack.domain.TechStackSourceType.NPM) {
+        } else if (source.getType() == TechStackSourceType.NPM) {
           log.warn("GitHub 좌표 정보가 없어 릴리즈 노트 없이 저장 techStack={} version={}", techStackName, version);
         } else {
           log.warn("GitHub 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
