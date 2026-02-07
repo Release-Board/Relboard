@@ -2,6 +2,7 @@ package io.relboard.crawler.crawler.application;
 
 import io.relboard.crawler.infra.client.GithubClient;
 import io.relboard.crawler.infra.client.MavenClient;
+import io.relboard.crawler.infra.client.NpmClient;
 import io.relboard.crawler.infra.kafka.KafkaProducer;
 import io.relboard.crawler.release.domain.ReleaseParser;
 import io.relboard.crawler.release.domain.ReleaseRecord;
@@ -17,6 +18,7 @@ import io.relboard.crawler.techstack.repository.TechStackSourceRepository;
 import io.relboard.crawler.translation.domain.TranslationBacklog;
 import io.relboard.crawler.translation.domain.TranslationBacklogStatus;
 import io.relboard.crawler.translation.repository.TranslationBacklogRepository;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -39,6 +41,7 @@ public class CrawlingServiceImpl implements CrawlingService {
   private final ReleaseRecordRepository releaseRecordRepository;
   private final ReleaseTagRepository releaseTagRepository;
   private final MavenClient mavenClient;
+  private final NpmClient npmClient;
   private final GithubClient githubClient;
   private final KafkaProducer kafkaProducer;
   private final TranslationBacklogRepository translationBacklogRepository;
@@ -60,13 +63,27 @@ public class CrawlingServiceImpl implements CrawlingService {
       techStackName = source.getTechStack().getName();
       log.info("크롤링 시작 techStack={}", techStackName);
 
-      if (!source.hasMavenCoordinates() || !source.hasGithubCoordinates()) {
-        log.warn("좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
-        return;
-      }
+      String githubOwner = source.getMetadataValue("github_owner").orElse(null);
+      String githubRepo = source.getMetadataValue("github_repo").orElse(null);
+      String mavenGroupId = source.getMetadataValue("maven_group_id").orElse(null);
+      String mavenArtifactId = source.getMetadataValue("maven_artifact_id").orElse(null);
+      String npmPackageName = source.getMetadataValue("npm_package_name").orElse(null);
 
-      Optional<List<String>> versionsOpt =
-          mavenClient.fetchVersions(source.getMavenGroupId(), source.getMavenArtifactId());
+      Optional<List<String>> versionsOpt = Optional.empty();
+      if (source.getType() == io.relboard.crawler.techstack.domain.TechStackSourceType.MAVEN) {
+        if (mavenGroupId == null || mavenArtifactId == null) {
+          log.warn("Maven 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
+          return;
+        }
+        versionsOpt = mavenClient.fetchVersions(mavenGroupId, mavenArtifactId);
+      } else if (source.getType()
+          == io.relboard.crawler.techstack.domain.TechStackSourceType.NPM) {
+        if (npmPackageName == null) {
+          log.warn("NPM 패키지 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
+          return;
+        }
+        versionsOpt = npmClient.fetchVersions(npmPackageName);
+      }
       if (versionsOpt.isEmpty()) {
         log.warn("버전 목록을 찾을 수 없어 크롤링 건너뜀 techStack={}", techStackName);
         return;
@@ -82,38 +99,57 @@ public class CrawlingServiceImpl implements CrawlingService {
           continue;
         }
 
-        Optional<GithubClient.ReleaseDetails> releaseDetailsOpt =
-            githubClient.fetchReleaseDetails(
-                source.getGithubOwner(), source.getGithubRepo(), version);
-        if (releaseDetailsOpt.isEmpty()) {
-          log.warn("릴리즈 노트를 찾을 수 없어 건너뜀 techStack={} version={} ", techStackName, version);
-          continue;
+        GithubClient.ReleaseDetails releaseDetails = null;
+        String sourceUrl = null;
+        String content = null;
+        Instant publishedAt = null;
+        String title = version;
+
+        if (githubOwner != null && githubRepo != null) {
+          Optional<GithubClient.ReleaseDetails> releaseDetailsOpt =
+              githubClient.fetchReleaseDetails(githubOwner, githubRepo, version);
+          if (releaseDetailsOpt.isEmpty()) {
+            log.warn("릴리즈 노트를 찾을 수 없어 건너뜀 techStack={} version={}", techStackName, version);
+            continue;
+          }
+          releaseDetails = releaseDetailsOpt.get();
+          title = releaseDetails.title() != null ? releaseDetails.title() : version;
+          content = releaseDetails.content();
+          publishedAt = releaseDetails.publishedAt();
+          sourceUrl = releaseDetails.htmlUrl();
+        } else if (source.getType() == io.relboard.crawler.techstack.domain.TechStackSourceType.NPM) {
+          log.warn("GitHub 좌표 정보가 없어 릴리즈 노트 없이 저장 techStack={} version={}", techStackName, version);
+        } else {
+          log.warn("GitHub 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
+          return;
         }
 
-        GithubClient.ReleaseDetails releaseDetails = releaseDetailsOpt.get();
         ReleaseRecord record =
             releaseRecordRepository.save(
                 ReleaseRecord.builder()
                     .techStack(techStack)
                     .version(version)
-                    .title(releaseDetails.title() != null ? releaseDetails.title() : version)
-                    .content(releaseDetails.content())
-                    .publishedAt(releaseDetails.publishedAt())
+                    .title(title)
+                    .content(content)
+                    .publishedAt(publishedAt)
                     .build());
 
-        Set<ReleaseTagType> tags = releaseParser.extractTags(releaseDetails.content());
-        List<ReleaseEvent.Tag> eventTags =
-            tags.stream()
-                .map(
-                    tagType -> {
-                      releaseTagRepository.save(
-                          ReleaseTag.builder().releaseRecord(record).tagType(tagType).build());
-                      return new ReleaseEvent.Tag(tagType.name(), "Auto-extracted");
-                    })
-                .toList();
+        List<ReleaseEvent.Tag> eventTags = List.of();
+        if (content != null) {
+          Set<ReleaseTagType> tags = releaseParser.extractTags(content);
+          eventTags =
+              tags.stream()
+                  .map(
+                      tagType -> {
+                        releaseTagRepository.save(
+                            ReleaseTag.builder().releaseRecord(record).tagType(tagType).build());
+                        return new ReleaseEvent.Tag(tagType.name(), "Auto-extracted");
+                      })
+                  .toList();
+        }
 
         // Kafka 메시지 전송
-        LocalDateTime publishedAt =
+        LocalDateTime publishedAtAtSeoul =
             record.getPublishedAt() != null
                 ? LocalDateTime.ofInstant(record.getPublishedAt(), ZoneId.of("Asia/Seoul"))
                 : null;
@@ -131,11 +167,13 @@ public class CrawlingServiceImpl implements CrawlingService {
                     List.of(),
                     null,
                     List.of(),
-                    publishedAt,
-                    releaseDetails.htmlUrl(),
+                    publishedAtAtSeoul,
+                    sourceUrl,
                     eventTags)));
 
-        enqueueTranslationBacklog(record, releaseDetails.htmlUrl());
+        if (content != null && sourceUrl != null) {
+          enqueueTranslationBacklog(record, sourceUrl);
+        }
 
         log.info(
             "릴리즈 크롤링 성공 techStack={} version={} title={}",
