@@ -10,4 +10,4 @@ cd "$ROOT_DIR"
 
 # Restart only the crawler service and clean up orphan containers
 cd "$SCRIPT_DIR"
-docker compose up -d --remove-orphans relboard-crawler
+docker compose up -d relboard-crawler
