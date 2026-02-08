@@ -3,6 +3,7 @@ package io.relboard.crawler.crawler.application;
 import io.relboard.crawler.infra.client.GithubClient;
 import io.relboard.crawler.infra.client.MavenClient;
 import io.relboard.crawler.infra.client.NpmClient;
+import io.relboard.crawler.infra.client.RssClient;
 import io.relboard.crawler.infra.kafka.KafkaProducer;
 import io.relboard.crawler.release.domain.ReleaseParser;
 import io.relboard.crawler.release.domain.ReleaseRecord;
@@ -43,6 +44,7 @@ public class CrawlingServiceImpl implements CrawlingService {
   private final MavenClient mavenClient;
   private final NpmClient npmClient;
   private final GithubClient githubClient;
+  private final RssClient rssClient;
   private final KafkaProducer kafkaProducer;
   private final TranslationBacklogRepository translationBacklogRepository;
   private final ReleaseParser releaseParser = new ReleaseParser();
@@ -67,129 +69,234 @@ public class CrawlingServiceImpl implements CrawlingService {
       String mavenGroupId = source.getMetadataValue("maven_group_id").orElse(null);
       String mavenArtifactId = source.getMetadataValue("maven_artifact_id").orElse(null);
       String npmPackageName = source.getMetadataValue("npm_package_name").orElse(null);
+      String rssUrl = source.getMetadataValue("rss_url").orElse(null);
 
       Optional<List<String>> versionsOpt = Optional.empty();
+      List<RssClient.RssEntry> rssEntries = List.of();
 
-      if (githubOwner != null && githubRepo != null) {
-        versionsOpt = githubClient.fetchTags(githubOwner, githubRepo, 30);
-      }
+      if (source.getType() == TechStackSourceType.RSS) {
+        if (rssUrl == null) {
+          log.warn("RSS 주소 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
+          return;
+        }
+        rssEntries = rssClient.fetchEntries(rssUrl, 30);
+      } else {
+        if (githubOwner != null && githubRepo != null) {
+          versionsOpt = githubClient.fetchTags(githubOwner, githubRepo, 30);
+        }
 
-      if (versionsOpt.isEmpty()) {
-        if (source.getType() == TechStackSourceType.MAVEN) {
-          if (mavenGroupId == null || mavenArtifactId == null) {
-            log.warn("Maven 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
-            return;
+        if (versionsOpt.isEmpty()) {
+          if (source.getType() == TechStackSourceType.MAVEN) {
+            if (mavenGroupId == null || mavenArtifactId == null) {
+              log.warn("Maven 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
+              return;
+            }
+            versionsOpt = mavenClient.fetchVersions(mavenGroupId, mavenArtifactId);
+          } else if (source.getType() == TechStackSourceType.NPM) {
+            if (npmPackageName == null) {
+              log.warn("NPM 패키지 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
+              return;
+            }
+            versionsOpt = npmClient.fetchVersions(npmPackageName);
           }
-          versionsOpt = mavenClient.fetchVersions(mavenGroupId, mavenArtifactId);
-        } else if (source.getType() == TechStackSourceType.NPM) {
-          if (npmPackageName == null) {
-            log.warn("NPM 패키지 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
-            return;
-          }
-          versionsOpt = npmClient.fetchVersions(npmPackageName);
         }
       }
-      if (versionsOpt.isEmpty()) {
+
+      if (source.getType() == TechStackSourceType.RSS && rssEntries.isEmpty()) {
+        log.warn("RSS 항목을 찾을 수 없어 크롤링 건너뜀 techStack={}", techStackName);
+        return;
+      } else if (source.getType() != TechStackSourceType.RSS && versionsOpt.isEmpty()) {
         log.warn("버전 목록을 찾을 수 없어 크롤링 건너뜀 techStack={}", techStackName);
         return;
       }
 
-      List<String> versions = versionsOpt.get();
       TechStack techStack = source.getTechStack();
       String lastProcessedVersion = null;
 
-      for (String version : versions) {
-        long releaseStartNs = System.nanoTime();
-        if (releaseRecordRepository.existsByTechStackAndVersion(techStack, version)) {
-          continue;
-        }
-
-        GithubClient.ReleaseDetails releaseDetails = null;
-        String sourceUrl = null;
-        String content = null;
-        Instant publishedAt = null;
-        String title = version;
-
-        if (githubOwner != null && githubRepo != null) {
-          Optional<GithubClient.ReleaseDetails> releaseDetailsOpt =
-              githubClient.fetchReleaseDetails(githubOwner, githubRepo, version);
-          if (releaseDetailsOpt.isEmpty()) {
-            log.warn("릴리즈 노트를 찾을 수 없어 건너뜀 techStack={} version={}", techStackName, version);
+      if (source.getType() == TechStackSourceType.RSS) {
+        for (RssClient.RssEntry entry : rssEntries) {
+          long releaseStartNs = System.nanoTime();
+          String version = entry.version();
+          if (version == null || version.isBlank()) {
             continue;
           }
-          releaseDetails = releaseDetailsOpt.get();
-          title = releaseDetails.title() != null ? releaseDetails.title() : version;
-          content = releaseDetails.content();
-          publishedAt = releaseDetails.publishedAt();
-          sourceUrl = releaseDetails.htmlUrl();
-        } else if (source.getType() == TechStackSourceType.NPM) {
-          log.warn("GitHub 좌표 정보가 없어 릴리즈 노트 없이 저장 techStack={} version={}", techStackName, version);
-        } else {
-          log.warn("GitHub 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
-          return;
+          if (releaseRecordRepository.existsByTechStackAndVersion(techStack, version)) {
+            continue;
+          }
+
+          String title = entry.title() != null ? entry.title() : version;
+          String content = entry.content();
+          Instant publishedAt = entry.publishedAt();
+          String sourceUrl = entry.link();
+
+          ReleaseRecord record =
+              releaseRecordRepository.save(
+                  ReleaseRecord.builder()
+                      .techStack(techStack)
+                      .version(version)
+                      .title(title)
+                      .content(content)
+                      .publishedAt(publishedAt)
+                      .build());
+
+          List<ReleaseEvent.Tag> eventTags = List.of();
+          if (content != null) {
+            Set<ReleaseTagType> tags = releaseParser.extractTags(content);
+            eventTags =
+                tags.stream()
+                    .map(
+                        tagType -> {
+                          releaseTagRepository.save(
+                              ReleaseTag.builder().releaseRecord(record).tagType(tagType).build());
+                          return new ReleaseEvent.Tag(tagType.name(), "Auto-extracted");
+                        })
+                    .toList();
+          }
+
+          // Kafka 메시지 전송
+          LocalDateTime publishedAtAtSeoul =
+              record.getPublishedAt() != null
+                  ? LocalDateTime.ofInstant(record.getPublishedAt(), ZoneId.of("Asia/Seoul"))
+                  : null;
+          kafkaProducer.sendReleaseEvent(
+              new ReleaseEvent(
+                  UUID.randomUUID().toString(),
+                  LocalDateTime.now(),
+                  new ReleaseEvent.Payload(
+                      techStack.getName(),
+                      version,
+                      record.getTitle(),
+                      record.getContent(),
+                      null,
+                      null,
+                      List.of(),
+                      null,
+                      List.of(),
+                      publishedAtAtSeoul,
+                      sourceUrl,
+                      eventTags)));
+
+          if (content != null && sourceUrl != null) {
+            enqueueTranslationBacklog(record, sourceUrl);
+          }
+
+          log.info(
+              "릴리즈 크롤링 성공 techStack={} version={} title={}",
+              techStackName,
+              version,
+              record.getTitle());
+          long releaseMs = (System.nanoTime() - releaseStartNs) / 1_000_000L;
+          log.trace(
+              "릴리즈 처리 시간 techStack={} version={} elapsedMs={}",
+              techStackName,
+              version,
+              releaseMs);
+
+          if (lastProcessedVersion == null) {
+            lastProcessedVersion = version;
+          }
         }
+      } else {
+        List<String> versions = versionsOpt.get();
+        for (String version : versions) {
+          long releaseStartNs = System.nanoTime();
+          if (releaseRecordRepository.existsByTechStackAndVersion(techStack, version)) {
+            continue;
+          }
 
-        ReleaseRecord record =
-            releaseRecordRepository.save(
-                ReleaseRecord.builder()
-                    .techStack(techStack)
-                    .version(version)
-                    .title(title)
-                    .content(content)
-                    .publishedAt(publishedAt)
-                    .build());
+          GithubClient.ReleaseDetails releaseDetails = null;
+          String sourceUrl = null;
+          String content = null;
+          Instant publishedAt = null;
+          String title = version;
 
-        List<ReleaseEvent.Tag> eventTags = List.of();
-        if (content != null) {
-          Set<ReleaseTagType> tags = releaseParser.extractTags(content);
-          eventTags =
-              tags.stream()
-                  .map(
-                      tagType -> {
-                        releaseTagRepository.save(
-                            ReleaseTag.builder().releaseRecord(record).tagType(tagType).build());
-                        return new ReleaseEvent.Tag(tagType.name(), "Auto-extracted");
-                      })
-                  .toList();
+          if (githubOwner != null && githubRepo != null) {
+            Optional<GithubClient.ReleaseDetails> releaseDetailsOpt =
+                githubClient.fetchReleaseDetails(githubOwner, githubRepo, version);
+            if (releaseDetailsOpt.isEmpty()) {
+              log.warn("릴리즈 노트를 찾을 수 없어 건너뜀 techStack={} version={}", techStackName, version);
+              continue;
+            }
+            releaseDetails = releaseDetailsOpt.get();
+            title = releaseDetails.title() != null ? releaseDetails.title() : version;
+            content = releaseDetails.content();
+            publishedAt = releaseDetails.publishedAt();
+            sourceUrl = releaseDetails.htmlUrl();
+          } else if (source.getType() == TechStackSourceType.NPM) {
+            log.warn(
+                "GitHub 좌표 정보가 없어 릴리즈 노트 없이 저장 techStack={} version={}",
+                techStackName,
+                version);
+          } else {
+            log.warn("GitHub 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
+            return;
+          }
+
+          ReleaseRecord record =
+              releaseRecordRepository.save(
+                  ReleaseRecord.builder()
+                      .techStack(techStack)
+                      .version(version)
+                      .title(title)
+                      .content(content)
+                      .publishedAt(publishedAt)
+                      .build());
+
+          List<ReleaseEvent.Tag> eventTags = List.of();
+          if (content != null) {
+            Set<ReleaseTagType> tags = releaseParser.extractTags(content);
+            eventTags =
+                tags.stream()
+                    .map(
+                        tagType -> {
+                          releaseTagRepository.save(
+                              ReleaseTag.builder().releaseRecord(record).tagType(tagType).build());
+                          return new ReleaseEvent.Tag(tagType.name(), "Auto-extracted");
+                        })
+                    .toList();
+          }
+
+          // Kafka 메시지 전송
+          LocalDateTime publishedAtAtSeoul =
+              record.getPublishedAt() != null
+                  ? LocalDateTime.ofInstant(record.getPublishedAt(), ZoneId.of("Asia/Seoul"))
+                  : null;
+          kafkaProducer.sendReleaseEvent(
+              new ReleaseEvent(
+                  UUID.randomUUID().toString(),
+                  LocalDateTime.now(),
+                  new ReleaseEvent.Payload(
+                      techStack.getName(),
+                      version,
+                      record.getTitle(),
+                      record.getContent(),
+                      null,
+                      null,
+                      List.of(),
+                      null,
+                      List.of(),
+                      publishedAtAtSeoul,
+                      sourceUrl,
+                      eventTags)));
+
+          if (content != null && sourceUrl != null) {
+            enqueueTranslationBacklog(record, sourceUrl);
+          }
+
+          log.info(
+              "릴리즈 크롤링 성공 techStack={} version={} title={}",
+              techStackName,
+              version,
+              record.getTitle());
+          long releaseMs = (System.nanoTime() - releaseStartNs) / 1_000_000L;
+          log.trace(
+              "릴리즈 처리 시간 techStack={} version={} elapsedMs={}",
+              techStackName,
+              version,
+              releaseMs);
+
+          lastProcessedVersion = version;
         }
-
-        // Kafka 메시지 전송
-        LocalDateTime publishedAtAtSeoul =
-            record.getPublishedAt() != null
-                ? LocalDateTime.ofInstant(record.getPublishedAt(), ZoneId.of("Asia/Seoul"))
-                : null;
-        kafkaProducer.sendReleaseEvent(
-            new ReleaseEvent(
-                UUID.randomUUID().toString(),
-                LocalDateTime.now(),
-                new ReleaseEvent.Payload(
-                    techStack.getName(),
-                    version,
-                    record.getTitle(),
-                    record.getContent(),
-                    null,
-                    null,
-                    List.of(),
-                    null,
-                    List.of(),
-                    publishedAtAtSeoul,
-                    sourceUrl,
-                    eventTags)));
-
-        if (content != null && sourceUrl != null) {
-          enqueueTranslationBacklog(record, sourceUrl);
-        }
-
-        log.info(
-            "릴리즈 크롤링 성공 techStack={} version={} title={}",
-            techStackName,
-            version,
-            record.getTitle());
-        long releaseMs = (System.nanoTime() - releaseStartNs) / 1_000_000L;
-        log.trace(
-            "릴리즈 처리 시간 techStack={} version={} elapsedMs={}", techStackName, version, releaseMs);
-
-        lastProcessedVersion = version;
       }
 
       if (lastProcessedVersion != null) {
