@@ -1,8 +1,6 @@
 package io.relboard.crawler.crawler.application;
 
 import io.relboard.crawler.infra.client.GithubClient;
-import io.relboard.crawler.infra.client.MavenClient;
-import io.relboard.crawler.infra.client.NpmClient;
 import io.relboard.crawler.infra.client.RssClient;
 import io.relboard.crawler.infra.kafka.KafkaProducer;
 import io.relboard.crawler.release.domain.ReleaseParser;
@@ -41,10 +39,10 @@ public class CrawlingServiceImpl implements CrawlingService {
   private final TechStackRepository techStackRepository;
   private final ReleaseRecordRepository releaseRecordRepository;
   private final ReleaseTagRepository releaseTagRepository;
-  private final MavenClient mavenClient;
-  private final NpmClient npmClient;
   private final GithubClient githubClient;
-  private final RssClient rssClient;
+  private final MavenCrawlingService mavenCrawlingService;
+  private final NpmCrawlingService npmCrawlingService;
+  private final RssCrawlingService rssCrawlingService;
   private final KafkaProducer kafkaProducer;
   private final TranslationBacklogRepository translationBacklogRepository;
   private final ReleaseParser releaseParser = new ReleaseParser();
@@ -66,20 +64,11 @@ public class CrawlingServiceImpl implements CrawlingService {
 
       String githubOwner = source.getMetadataValue("github_owner").orElse(null);
       String githubRepo = source.getMetadataValue("github_repo").orElse(null);
-      String mavenGroupId = source.getMetadataValue("maven_group_id").orElse(null);
-      String mavenArtifactId = source.getMetadataValue("maven_artifact_id").orElse(null);
-      String npmPackageName = source.getMetadataValue("npm_package_name").orElse(null);
-      String rssUrl = source.getMetadataValue("rss_url").orElse(null);
-
       Optional<List<String>> versionsOpt = Optional.empty();
       List<RssClient.RssEntry> rssEntries = List.of();
 
       if (source.getType() == TechStackSourceType.RSS) {
-        if (rssUrl == null) {
-          log.warn("RSS 주소 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
-          return;
-        }
-        rssEntries = rssClient.fetchEntries(rssUrl, 30);
+        rssEntries = rssCrawlingService.fetchEntries(source);
       } else {
         if (githubOwner != null && githubRepo != null) {
           versionsOpt = githubClient.fetchTags(githubOwner, githubRepo, 30);
@@ -87,17 +76,9 @@ public class CrawlingServiceImpl implements CrawlingService {
 
         if (versionsOpt.isEmpty()) {
           if (source.getType() == TechStackSourceType.MAVEN) {
-            if (mavenGroupId == null || mavenArtifactId == null) {
-              log.warn("Maven 좌표 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
-              return;
-            }
-            versionsOpt = mavenClient.fetchVersions(mavenGroupId, mavenArtifactId);
+            versionsOpt = mavenCrawlingService.fetchVersions(source);
           } else if (source.getType() == TechStackSourceType.NPM) {
-            if (npmPackageName == null) {
-              log.warn("NPM 패키지 정보 부족으로 크롤링 건너뜀 techStack={}", techStackName);
-              return;
-            }
-            versionsOpt = npmClient.fetchVersions(npmPackageName);
+            versionsOpt = npmCrawlingService.fetchVersions(source);
           }
         }
       }

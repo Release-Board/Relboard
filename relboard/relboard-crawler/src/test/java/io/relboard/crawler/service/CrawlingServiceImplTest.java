@@ -9,8 +9,9 @@ import static org.mockito.Mockito.when;
 
 import io.relboard.crawler.crawler.application.CrawlingServiceImpl;
 import io.relboard.crawler.infra.client.GithubClient;
-import io.relboard.crawler.infra.client.MavenClient;
-import io.relboard.crawler.infra.client.NpmClient;
+import io.relboard.crawler.crawler.application.MavenCrawlingService;
+import io.relboard.crawler.crawler.application.NpmCrawlingService;
+import io.relboard.crawler.crawler.application.RssCrawlingService;
 import io.relboard.crawler.infra.kafka.KafkaProducer;
 import io.relboard.crawler.release.domain.ReleaseRecord;
 import io.relboard.crawler.release.repository.ReleaseRecordRepository;
@@ -38,8 +39,9 @@ class CrawlingServiceImplTest {
   @Mock private TechStackRepository techStackRepository;
   @Mock private ReleaseRecordRepository releaseRecordRepository;
   @Mock private ReleaseTagRepository releaseTagRepository;
-  @Mock private MavenClient mavenClient;
-  @Mock private NpmClient npmClient;
+  @Mock private MavenCrawlingService mavenCrawlingService;
+  @Mock private NpmCrawlingService npmCrawlingService;
+  @Mock private RssCrawlingService rssCrawlingService;
   @Mock private GithubClient githubClient;
   @Mock private KafkaProducer kafkaProducer;
   @Mock private TranslationBacklogRepository translationBacklogRepository;
@@ -54,9 +56,10 @@ class CrawlingServiceImplTest {
             techStackRepository,
             releaseRecordRepository,
             releaseTagRepository,
-            mavenClient,
-            npmClient,
             githubClient,
+            mavenCrawlingService,
+            npmCrawlingService,
+            rssCrawlingService,
             kafkaProducer,
             translationBacklogRepository);
   }
@@ -82,7 +85,8 @@ class CrawlingServiceImplTest {
             .build();
 
     when(techStackSourceRepository.findById(10L)).thenReturn(Optional.of(source));
-    when(mavenClient.fetchVersions("org.example", "app")).thenReturn(Optional.of(List.of("1.0.0")));
+    when(githubClient.fetchTags("owner", "repo", 30)).thenReturn(Optional.empty());
+    when(mavenCrawlingService.fetchVersions(source)).thenReturn(Optional.of(List.of("1.0.0")));
     when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.0.0")).thenReturn(true);
 
     crawlingService.process(10L);
@@ -113,7 +117,8 @@ class CrawlingServiceImplTest {
             .build();
 
     when(techStackSourceRepository.findById(20L)).thenReturn(Optional.of(source));
-    when(mavenClient.fetchVersions("org.example", "app"))
+    when(githubClient.fetchTags("owner", "repo", 30)).thenReturn(Optional.empty());
+    when(mavenCrawlingService.fetchVersions(source))
         .thenReturn(Optional.of(List.of("1.0.0", "1.1.0")));
     when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.0.0")).thenReturn(true);
     when(releaseRecordRepository.existsByTechStackAndVersion(techStack, "1.1.0")).thenReturn(false);
