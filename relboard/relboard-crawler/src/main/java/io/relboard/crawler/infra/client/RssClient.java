@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import io.relboard.crawler.infra.util.HtmlToMarkdownUtil;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -53,17 +54,18 @@ public class RssClient {
   }
 
   private String resolveContent(SyndEntry entry) {
+    String rawContent = null;
     if (entry.getContents() != null && !entry.getContents().isEmpty()) {
-      return entry.getContents().stream()
-          .map(SyndContent::getValue)
-          .filter(value -> value != null && !value.isBlank())
-          .reduce((left, right) -> left + "\n\n" + right)
-          .orElse(null);
+      rawContent =
+          entry.getContents().stream()
+              .map(SyndContent::getValue)
+              .filter(value -> value != null && !value.isBlank())
+              .reduce((left, right) -> left + " " + right)
+              .orElse(null);
+    } else if (entry.getDescription() != null) {
+      rawContent = entry.getDescription().getValue();
     }
-    if (entry.getDescription() != null) {
-      return entry.getDescription().getValue();
-    }
-    return null;
+    return HtmlToMarkdownUtil.convert(rawContent);
   }
 
   private Instant resolvePublishedAt(SyndEntry entry) {

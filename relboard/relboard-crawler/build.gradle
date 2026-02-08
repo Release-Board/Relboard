@@ -56,6 +56,8 @@ dependencies {
     implementation 'dev.langchain4j:langchain4j-google-ai-gemini:1.7.1'
     // rss/atom parser
     implementation 'com.rometools:rome:2.1.0'
+    // html -> markdown
+    implementation 'com.vladsch.flexmark:flexmark-html2md-converter:0.64.8'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
