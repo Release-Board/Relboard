@@ -38,4 +38,10 @@ public class RestClientConfig {
   public RestClient npmRestClient(RestClient.Builder builder) {
     return builder.baseUrl("https://registry.npmjs.org").build();
   }
+
+  @Bean
+  @Qualifier("rssRestClient")
+  public RestClient rssRestClient(RestClient.Builder builder) {
+    return builder.build();
+  }
 }

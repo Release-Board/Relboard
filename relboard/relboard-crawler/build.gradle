@@ -54,6 +54,8 @@ dependencies {
     implementation 'org.flywaydb:flyway-mysql'
     // langchain4j (Gemini)
     implementation 'dev.langchain4j:langchain4j-google-ai-gemini:1.7.1'
+    // rss/atom parser
+    implementation 'com.rometools:rome:2.1.0'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
